@@ -2,7 +2,8 @@
     (:require [rum :as r]
               [cljs.reader :as reader]
               [cljs.pprint :refer (pprint)]
-              [cljsjs.react]))
+              [cljsjs.react]
+              [db.squares]))
 
 (enable-console-print!)
 
@@ -16,36 +17,7 @@
                      :bs #{}
                      }))
 
-(defn square [x y dx dy]
-  "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
-  (let [x2 (+ x dx) 
-        y2 (+ y dy)] 
-    [[x y]
-     [(+ x dx) (+ y dy)]
-     [(+ x dx (- dy)) (+ y dx dy)]
-     [(- x dy) (+ x dx)]]))
 
-(defn sq [x y dx dy]
-  [x y dx dy])
-
-(defn onboard? [n s]
-  "true iff square s is inside square board of size n"
-  (let [inside? (fn [[x y]] (and (< x n) (< y n) (>= x 0) (>= y 0)))]
-    (every? inside? s)))
-
-(defn all-squares [n]
-  "generates all possible squares for a square board of size n"
-  (let [n1 (- n 1)
-        n2 (inc n)]
-    (filter #(onboard? n %)
-            (apply concat
-                   (for [x (range n1)]
-                     (apply concat
-                            (for [y (range n1)]
-                              (apply concat 
-                                     (for [dx (range 1 (- n2 x))]
-                                       (for [dy (range 0 (- n2 y dx))]
-                                         (square x y dx dy)))))))))))
 
 (defn dot-sep [n]
   (Math.floor (/ 300 n)))
@@ -117,6 +89,8 @@
 (defn on-js-reload []
   (swap! game update-in [:__figwheel_counter] inc)
 )
+
+
 
 (r/mount (board) (.getElementById js/document "game"))
 
