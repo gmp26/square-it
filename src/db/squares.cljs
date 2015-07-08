@@ -1,7 +1,33 @@
 (ns ^:figwheel-always db.squares
-    (:require [datascript :as d]))
+    (:require [datascript :as d]
+              [cljs-uuid.core :as uuid]))
 
 (enable-console-print!)
+
+;;
+;; database change reaction
+;;
+
+(defn bind
+  ([conn q]
+    (bind conn q (atom nil)))
+  ([conn q state]
+    (let [k (uuid/make-random-uuid)]
+      (reset! state (d/q q @conn))
+      (d/listen! conn k (fn [tx-report]
+                          (let [novelty (d/q q (:tx-data tx-report))]
+                            (when (not-empty novelty)       ;; Only update if query results actually changed
+                              (reset! state (d/q q (:db-after tx-report)))))))
+      (set! (.-__key state) k)
+      state)))
+
+(defn unbind
+  [conn state]
+  (d/unlisten! conn (.-__key state)))
+
+;;
+;; square generation
+;;
 
 (defn square [x y dx dy]
   "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
@@ -52,7 +78,7 @@
                                :name ix
                                :p sq})
                             squares))
-  (prn (d/q '[:find (aggregate ?p) ?p ?color
+  (prn (d/q '[:find ?e ?p ?color
               :where
               [?e :color ?color]
               [?e :p ?p]
@@ -66,17 +92,19 @@
 ;; reference
 
 
-(let [schema {:aka {:db/cardinality :db.cardinality/many}}
-      conn   (d/create-conn schema)]
-  (d/transact! conn [ { :db/id -1
-                       :name  "Maksim"
-                       :age   45
-                       :aka   ["Maks Otto von Stirlitz", "Jack Ryan"] } ])
-  (d/q '[ :find  ?n ?a
-         :where [?e :aka "Maks Otto von Stirlitz"]
-         [?e :name ?n]
-         [?e :age  ?a] ]
-       @conn))
+(prn (str (let [schema2 {:aka {:db/cardinality :db.cardinality/many}}
+                conn2   (d/create-conn schema2)]
+            (d/transact! conn [ {:db/id -1
+                                 :name  "Maksim"
+                                 :age   45
+                                 :aka   ["Maks Otto von Stirlitz", "Jack Ryan"] } ])
+            (d/q '[ :find  ?n ?a
+                   :where [?e :aka "Maks Otto von Stirlitz"]
+                   [?e :name ?n]
+                   [?e :age  ?a] ]
+                 @conn2)
+
+            )))
 
 ;; => #{ ["Maksim" 45] }
 
@@ -118,7 +146,7 @@
             :in   [[?color ?x]] ?amount ]
           [[:red 10]  [:red 20] [:red 30] [:red 40] [:red 50]
            [:blue 7] [:blue 8]]
-          1))
+          4))
 
 ;; => [[:red  [30 40 50] [10 20 30]]
 ;;     [:blue [7 8] [7 8]]]
