@@ -16,7 +16,7 @@
       (reset! state (d/q q @conn))
       (d/listen! conn k (fn [tx-report]
                           (let [novelty (d/q q (:tx-data tx-report))]
-                            (when (not-empty novelty)       ;; Only update if query results actually changed
+                            (when (not-empty novelty)
                               (reset! state (d/q q (:db-after tx-report)))))))
       (set! (.-__key state) k)
       state)))
@@ -65,93 +65,95 @@
 ;;
 ;; Implicit join, multi-valued attribute
 
-(def conn 
+;; Create database connection (actually it's an in-memory atom)
+(defonce conn 
   (d/create-conn 
    {:p {:db/cardinality :db.cardinality/many}}
 ))
 
-(let [squares (all-squares 3)]
+(defn init-squares-db [n]
+  "populate with all possible squares for board of side n"
+  (d/transact! conn (all-squares n)))
+
+
+(defn squares-db [n]
   (d/transact! conn 
                (map-indexed (fn [ix sq]
-                              {
-                               :color :red
-                               :name ix
+                              {:name ix
                                :p sq})
-                            squares))
-  (prn (d/q '[:find ?e ?p ?color
-              :where
-              [?e :color ?color]
-              [?e :p ?p]
-              ]
-            @conn))
+                            (all-squares n))))
+
+(defn  one-colour-q [colour]
+  ()) 
+
+(all-squares 3)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Reference example commented out
+;;
+(comment
+  (prn (str (let [schema2 {:aka {:db/cardinality :db.cardinality/many}}
+                  conn2   (d/create-conn schema2)]
+              (d/transact! conn [ {:db/id -1
+                                   :name  "Maksim"
+                                   :age   45
+                                   :aka   ["Maks Otto von Stirlitz", "Jack Ryan"] } ])
+              (d/q '[ :find  ?n ?a
+                     :where [?e :aka "Maks Otto von Stirlitz"]
+                     [?e :name ?n]
+                     [?e :age  ?a] ]
+                   @conn2)
+
+              )))
+
+  ;; => #{ ["Maksim" 45] }
+
+
+  ;; Destructuring, function call, predicate call, query over collection
+
+  (defn testdb [] (d/q '[ :find  ?k ?x
+                         :in    [[?k [?min ?max]] ...] ?range
+                         :where [(?range ?min ?max) [?x ...]]
+                         [(even? ?x)] ]
+                       { :a [1 7], :b [2 4] }
+                       range))
+
+  ;; => #{ [:a 2] [:a 4] [:a 6] [:b 2] }
+
+
+  ;; Recursive rule
+
+  (d/q '[ :find  ?u1 ?u2
+         :in    $ %
+         :where (follows ?u1 ?u2) ]
+       [ [1 :follows 2]
+         [2 :follows 3]
+         [3 :follows 4] ]
+       '[ [(follows ?e1 ?e2)
+           [?e1 :follows ?e2]]
+          [(follows ?e1 ?e2)
+           [?e1 :follows ?t]
+           (follows ?t ?e2)] ])
+
+  ;; => #{ [1 2] [1 3] [1 4]
+  ;;       [2 3] [2 4]
+  ;;       [3 4] }
+
+
+  ;; Aggregates
+
+  (prn (d/q '[ :find ?color (max ?amount ?x) (min ?amount ?x)
+              :in   [[?color ?x]] ?amount ]
+            [[:red 10]  [:red 20] [:red 30] [:red 40] [:red 50]
+             [:blue 7] [:blue 8]]
+            4))
+
+  ;; => [[:red  [30 40 50] [10 20 30]]
+  ;;     [:blue [7 8] [7 8]]]
+
+
+  ;; end commented region
+
+
   )
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; sample db stuff ;;;;;;;;;;;
-
-
-;; reference
-
-
-(prn (str (let [schema2 {:aka {:db/cardinality :db.cardinality/many}}
-                conn2   (d/create-conn schema2)]
-            (d/transact! conn [ {:db/id -1
-                                 :name  "Maksim"
-                                 :age   45
-                                 :aka   ["Maks Otto von Stirlitz", "Jack Ryan"] } ])
-            (d/q '[ :find  ?n ?a
-                   :where [?e :aka "Maks Otto von Stirlitz"]
-                   [?e :name ?n]
-                   [?e :age  ?a] ]
-                 @conn2)
-
-            )))
-
-;; => #{ ["Maksim" 45] }
-
-
-;; Destructuring, function call, predicate call, query over collection
-
-(defn testdb [] (d/q '[ :find  ?k ?x
-                       :in    [[?k [?min ?max]] ...] ?range
-                       :where [(?range ?min ?max) [?x ...]]
-                       [(even? ?x)] ]
-                     { :a [1 7], :b [2 4] }
-                     range))
-
-;; => #{ [:a 2] [:a 4] [:a 6] [:b 2] }
-
-
-;; Recursive rule
-
-(d/q '[ :find  ?u1 ?u2
-       :in    $ %
-       :where (follows ?u1 ?u2) ]
-     [ [1 :follows 2]
-       [2 :follows 3]
-       [3 :follows 4] ]
-     '[ [(follows ?e1 ?e2)
-         [?e1 :follows ?e2]]
-        [(follows ?e1 ?e2)
-         [?e1 :follows ?t]
-         (follows ?t ?e2)] ])
-
-;; => #{ [1 2] [1 3] [1 4]
-;;       [2 3] [2 4]
-;;       [3 4] }
-
-
-;; Aggregates
-
-(prn (d/q '[ :find ?color (max ?amount ?x) (min ?amount ?x)
-            :in   [[?color ?x]] ?amount ]
-          [[:red 10]  [:red 20] [:red 30] [:red 40] [:red 50]
-           [:blue 7] [:blue 8]]
-          4))
-
-;; => [[:red  [30 40 50] [10 20 30]]
-;;     [:blue [7 8] [7 8]]]
-
-
-;; end commented region
-
-
