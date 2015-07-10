@@ -10,7 +10,6 @@
 (println "Edits to this text should show up in your developer console.")
 
 ;; define your app data so that it doesn't get over-written on reload
-
 (defonce game (atom {:n 9
                      :player :a
                      :as #{}

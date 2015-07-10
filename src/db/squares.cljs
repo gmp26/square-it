@@ -84,6 +84,7 @@
 (def conn 
   (d/create-conn 
    {:square/point {:db/cardinality :db.cardinality/many
+                   :db/valueType :db.type/ref
                    }}
 ))
 
@@ -100,12 +101,6 @@
          [?pe :point/p ?p]
          ] @conn p))
 
-(defn db-add-squares [n]
-  (db-add-points n)
-  (d/transact! conn 
-               (map (fn [sqp] {:square/point (first (first (point-at (sqp))))}) 
-                    (all-squares n))))
-
 (defn find-point [p]
   "Claim a point by colouring it"
   (let [pe (d/q '[:find ?sqp ?p 
@@ -114,6 +109,45 @@
                   [?sqp :square/point ?p]
                   ] @conn p)]
     pe))
+
+(defn points [[p1 p2 p3 p4]]
+  (d/q '[:find ?pe1 ?pe2 ?pe3 ?pe4
+         :in $ ?p1 ?p2 ?p3 ?p4
+         :where 
+         [?pe1 :point/p ?p1]
+         [?pe2 :point/p ?p2]
+         [?pe3 :point/p ?p3]
+         [?pe4 :point/p ?p4]
+         ] @conn p1 p2 p3 p4 ))
+
+(defn squares-by-pe [n]
+  (map first (map points (all-squares n))))
+
+(defn db-add-squares [n]
+  (db-add-points n)
+  (d/transact! conn 
+               (map (fn [sbpe] {:square/point sbpe}) (squares-by-pe n))))
+
+(defn test-ref3 []
+  (db-add-points 2)
+  ()
+  )
+
+;; This works
+(defn test-ref1 []
+  (db-add-points 2)
+  (d/transact! conn [{:db/id -1 :square/point 1}])
+  (d/transact! conn [{:db/id -1 :square/point 2}])
+  (d/transact! conn [{:db/id -1 :square/point 3}])
+  (d/transact! conn [{:db/id -1 :square/point 4}])
+  (d/q '[:find ?p :where [?s :square/point ?pe] [?pe :point/p ?p]] @conn))
+;; => #{[[0 0]] [[0 1]]}
+
+(defn test-ref2 []
+  (db-add-points 2)
+  (d/transact! conn [{:square/point [1 2 3 4]}])
+  (d/q '[:find ?p :where [?s :square/point ?pe] [?pe :point/p ?p]] @conn))
+
 
 
 #_(defn  one-colour-q [c]
