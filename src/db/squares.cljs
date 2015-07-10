@@ -2,17 +2,26 @@
     (:require [datascript :as d]
               [cljs-uuid.core :as uuid]))
 
+;;
+;; See http://docs.datomic.com/clojure for api superset (datomic java verion)
+;;
+;; Transactions in http://docs.datomic.com/transactions.html
+;;
+;; http://www.slideshare.net/fractallambda/datascript-and-reagent for slides
+;;
+;; https://github.com/tonsky/datascript/issues/46 for explanation of :db/id
+;;
+
 (enable-console-print!)
 
 ;;
-;; database change reaction
+;; bind a database change to a rum/react atom
 ;;
-
 (defn bind
   ([conn q]
     (bind conn q (atom nil)))
   ([conn q state]
-    (let [k (uuid/make-random-uuid)]
+    (let [k (uuid/make-random)]
       (reset! state (d/q q @conn))
       (d/listen! conn k (fn [tx-report]
                           (let [novelty (d/q q (:tx-data tx-report))]
@@ -25,10 +34,10 @@
   [conn state]
   (d/unlisten! conn (.-__key state)))
 
+
 ;;
 ;; square generation
 ;;
-
 (defn square [x y dx dy]
   "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
   (let [x2 (+ x dx) 
@@ -45,6 +54,12 @@
   "true iff square s is inside square board of size n"
   (let [inside? (fn [[x y]] (and (< x n) (< y n) (>= x 0) (>= y 0)))]
     (every? inside? s)))
+
+(defn all-points [n]
+  "generates all points on the square-it board"
+  (for [i (range 0 n)
+           j (range 0 n)]
+       [i j]) )
 
 (defn all-squares [n]
   "generates all possible squares for a square board of size n"
@@ -65,28 +80,69 @@
 ;;
 ;; Implicit join, multi-valued attribute
 
-;; Create database connection (actually it's an in-memory atom)
-(defonce conn 
+;; Create database connection. it's an in-memory atom.
+(def conn 
   (d/create-conn 
-   {:p {:db/cardinality :db.cardinality/many}}
+   {:square/point {:db/cardinality :db.cardinality/many
+                   }}
 ))
 
-(defn init-squares-db [n]
-  "populate with all possible squares for board of side n"
-  (d/transact! conn (all-squares n)))
+;; create points (x,y) with colour c :none
+(defn db-add-points [n]
+  (d/transact! conn (map (fn [p] {:point/p p
+                                  :point/c :none}) (all-points n))))
 
 
-(defn squares-db [n]
+(defn point-at [p]
+  (d/q '[:find ?pe
+         :in $ ?p
+         :where
+         [?pe :point/p ?p]
+         ] @conn p))
+
+(defn db-add-squares [n]
+  (db-add-points n)
   (d/transact! conn 
-               (map-indexed (fn [ix sq]
-                              {:name ix
-                               :p sq})
-                            (all-squares n))))
+               (map (fn [sqp] {:square/point (first (first (point-at (sqp))))}) 
+                    (all-squares n))))
 
-(defn  one-colour-q [colour]
-  ()) 
+(defn find-point [p]
+  "Claim a point by colouring it"
+  (let [pe (d/q '[:find ?sqp ?p 
+                  :in $ ?p
+                  :where 
+                  [?sqp :square/point ?p]
+                  ] @conn p)]
+    pe))
 
-(all-squares 3)
+
+#_(defn  one-colour-q [c]
+  (d/q find '[?s
+              :in $ ?c
+              :where
+              [?s :square/id ?id]
+              [?s :square/point ?p]
+              [?s :square/colour ?c]] squares-db c) 
+)
+
+#_(defn  two-colour-q [c1 c2]
+  (d/q find '[?s
+              :in $ ?color
+              :where
+              [?s :square/id ?id]
+              [?s :square/point ?p]
+              [?s :square/colour ?c1]
+              [?s :square/colour ?c2]] squares-db c1 c2) 
+)
+
+#_(defn squares-containing-p-q [p]
+  (bind conn))
+
+(defn colour-point [p c]
+  
+  (d/transact! conn [{:square/point p}]))
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
