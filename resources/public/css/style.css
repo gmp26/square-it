@@ -1,19 +1,22 @@
 /* some style */
-.grid {
-    position: relative
-}
-
 .dot {
-    position: absolute;
-    background-color: #000;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background-color: #ded;
-    border: 5px solid #bcd;
+    stroke: #eeeeff;
     cursor: pointer;
 }
 
+.toolbar {
+    padding: 0;
+    margin: 0 auto;
+    display: inline;
+    position: relative;
+    width: 300px;
+}
+
+.dot-filled {
+    stroke: #eeeeff;
+}
+
 .dot:hover {
-    background-color: #acf;
-}    
+    stroke: #ddddee;
+    fill: #000;
+}

@@ -58,7 +58,7 @@
 (defn all-points [n]
   "generates all points on the square-it board"
   (for [i (range 0 n)
-           j (range 0 n)]
+        j (range 0 n)]
        [i j]) )
 
 (defn all-squares [n]
@@ -91,22 +91,22 @@
 ;; create points (x,y) with colour c :none
 (defn db-add-points [n]
   (d/transact! conn (map (fn [p] {:point/p p
-                                  :point/c :none}) (all-points n))))
+                                  :point/c :none}) (all-points n)))
+  )
 
 
 (defn point-at [p]
-  (d/q '[:find ?pe
-         :in $ ?p
-         :where
-         [?pe :point/p ?p]
-         ] @conn p))
+  (first (first (d/q '[:find ?pe
+                       :in $ ?p
+                       :where
+                       [?pe :point/p ?p]
+                       ] @conn p))))
 
 (defn find-point [p]
-  "Claim a point by colouring it"
-  (let [pe (d/q '[:find ?sqp ?p 
+  (let [pe (d/q '[:find ?pe 
                   :in $ ?p
                   :where 
-                  [?sqp :square/point ?p]
+                  [?pe :point/p ?p]
                   ] @conn p)]
     pe))
 
@@ -118,7 +118,7 @@
          [?pe2 :point/p ?p2]
          [?pe3 :point/p ?p3]
          [?pe4 :point/p ?p4]
-         ] @conn p1 p2 p3 p4 ))
+         ] @conn p1 p2 p3 p4))
 
 (defn squares-by-pe [n]
   (map first (map points (all-squares n))))
@@ -126,12 +126,41 @@
 (defn db-add-squares [n]
   (db-add-points n)
   (d/transact! conn 
-               (map (fn [sbpe] {:square/point sbpe}) (squares-by-pe n))))
+               (map (fn [sbpe] {:square/point sbpe}) (squares-by-pe n)))
+  nil)
 
-(defn test-ref3 []
-  (db-add-points 2)
-  ()
+
+(defn count-frees []
+  (d/q '[:find (count ?s)
+         :where
+         [?s :square/point _]] @conn ))
+
+(defn frees []
+  (d/q '[:find (count ?pe)
+         :where
+         [?s :square/point ?pe]
+         [?pe :point/c :none]
+         ] @conn ))
+
+(defn get-point-fill [p]
+  (d/q '[:find ?fill
+         :in $ ?pe
+         :where
+         [?pe :point/c ?fill]] @conn (point-at p))) 
+
+(defn occupy-point [p c]
+  (let [pe (point-at p)]
+    (if pe 
+      (do
+        (d/transact! conn [{:db/retract (point-at p)
+                            :point/c c}])
+        (d/transact! conn [{:db/id (point-at p)
+                            :point/c c}]))
+      (prn (str p " not found")))
+    )
+  nil
   )
+
 
 ;; This works
 (defn test-ref1 []
@@ -147,7 +176,6 @@
   (db-add-points 2)
   (d/transact! conn [{:square/point [1 2 3 4]}])
   (d/q '[:find ?p :where [?s :square/point ?pe] [?pe :point/p ?p]] @conn))
-
 
 
 #_(defn  one-colour-q [c]
@@ -169,12 +197,6 @@
               [?s :square/colour ?c2]] squares-db c1 c2) 
 )
 
-#_(defn squares-containing-p-q [p]
-  (bind conn))
-
-(defn colour-point [p c]
-  
-  (d/transact! conn [{:square/point p}]))
 
 
 
