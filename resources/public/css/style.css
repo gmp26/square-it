@@ -14,3 +14,12 @@
     opacity: 1;
     stroke: #ddddee;
 }
+
+.status {
+    width: 265px;
+    margin: 0 auto;
+    color: white;
+    text-align: center;
+    font-size: 1.6em;
+    font-family: "Helvetica Neue" "Arial" sans;
+}

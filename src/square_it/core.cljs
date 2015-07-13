@@ -9,14 +9,42 @@
 
 (prn "-- Restart --")
 
-(defonce game (atom {:n 5
-                     :player :a
-                     :as #{}
-                     :bs #{}
-                     }))
+(def initial-state {:n 5
+                    :player :a
+                    :players 1
+                    :as #{}
+                    :bs #{}
+                    })
 
-(def unit 1.19)
-(def gap 30)
+(def messages {:yours "Your turn"
+               :als   "Al's turn"
+               :as-turn "Player A's turn"
+               :bs-turn "Player B's turn"
+               :you-win "Well done! You won"
+               :al-win "Oops! You lost"
+               :a-win "Player A won"
+               :b-win "Player B won"
+               })
+
+(def message-colours {:yours :a
+                      :als   :b
+                      :as-turn :a
+                      :bs-turn :b
+                      :you-win :a
+                      :al-win :b
+                      :a-win :a
+                      :b-win :b
+                      })
+
+
+(defonce game (atom initial-state))
+
+(def bound-width 320)
+(def bound-height 320)
+(def max-n 9)
+(def min-n 3)
+(def unit 1)
+(def gap 36)
 (defn units [x] (* x unit))
 (defn gaps [x] (* (units (+ x 0.5)) gap))
 
@@ -47,13 +75,13 @@
 (defn up-tap [event]
   (.stopPropagation event)
   (let [inc-lt (fn [n m] (if (< n m) (inc n) m))]
-    (swap! game #(update % :n inc-lt 9)))
+    (swap! game #(update % :n inc-lt max-n)))
 )
 
 (defn down-tap [event]
   (.stopPropagation event)
   (let [decz (fn [n m] (if (> n m) (- n 1) m))]
-    (swap! game #(update % :n decz 3)))
+    (swap! game #(update % :n decz min-n)))
 )
 
 (defn handle-tap [event]
@@ -92,14 +120,13 @@
   )
 
 (r/defc svg-grid < r/reactive [g]
-  [:section {:key "b3" :style {:height "90vw"}}
-   ;; NB increase view-box width to provide more height for toolbars etc.
-   [:svg {:view-box "0 0 320 370" 
+  [:section {:key "b3" :style {:height "60vw"}}
+   [:svg {:view-box (str "0 0 " bound-width " " bound-height) 
           :height "100%"
           :width "100%"
           :key "b3"}
     (let [n (:n g)] 
-      [:g {:transform (str "scale(" (/ 9 n) ")")}
+      [:g {:transform (str "scale(" (* 1 (/ max-n n)) ")")}
        (for [x (range n)]
          (for [y (range n)]
            (svg-dot n x y (fill-color g [x y])) ))])]])
@@ -108,39 +135,77 @@
   [:p {:key "b1"} (str g)]
 )
 
+
+(defn active [g player-count]
+  (if (= player-count (:players g)) "active" "")
+)
+
+(defn one-player [event]
+  (.stopPropagation event)
+  (swap! game #(assoc % :players 1)))
+
+(defn two-player [event]
+  (.stopPropagation event)
+  (swap! game #(assoc % :players 2)))
+
+(defn reset-game [event]
+  (.stopPropagation event)
+  (reset! game initial-state))
+
 (r/defc tool-bar < r/reactive [g]
   [:div {:class "btn-group toolbar"}
    [:button {:type "button" :class "btn btn-warning" :key "bu1" :on-click down-tap :on-touch-end down-tap} 
     [:span {:class "fa fa-chevron-down"}]]
    [:button {:type "button" :class "btn btn-warning" :key "bu2" :on-click up-tap :on-touch-end up-tap} 
     [:span {:class "fa fa-chevron-up"}]]
-   [:button {:type "button" :class "btn btn-default" :key "bu4"} "1 player"]
-   [:button {:type "button" :class "btn btn-default active" :key "bu5"} "2 player"]
-   [:button {:type "button" :class "btn btn-danger" :key "bu3"} 
+   [:button {:type "button" :class (str "btn btn-default " (active g 1)) :key "bu4" :on-click one-player :on-touch-end one-player} "1 player"]
+   [:button {:type "button" :class (str "btn btn-default " (active g 2)) :key "bu5" :on-click two-player :on-touch-end two-player} "2 player"]
+   [:button {:type "button" :class "btn btn-danger" :key "bu3" :on-click reset-game :on-touch-end reset-game} 
     [:span {:class "fa fa-refresh"}]]
    ])
 
+
+#_(def messages {:yours "Your turn"
+               :als   "Al's turn"
+               :as-turn "Player A's turn"
+               :bs-turn "Player B's turn"
+               :you-win "Well done! You won"
+               :al-win "Oops! You lost"
+               :a-win "Player A won"
+               :b-win "Player B won"
+               })
+
+(defn get-status [g]
+  (if (= (:players g) 1)
+    (if (= (:player g) :a) :yours :als)
+    (if (= (:player g) :a) :as-turn :bs-turn)
+    ))
+
+(defn get-message [status]
+  (status messages))
+
+(defn get-fill [status]
+  ((status message-colours) player-colours))
+
 (r/defc status-bar < r/reactive [g]
-  [:p {:key "b4"} "Status Bar"])
+  (let [status (get-status g)]
+    [:p {:class "status" :style {:background-color (get-fill status)} :key "b4"} (get-message status)]))
 
 (r/defc board  < r/reactive []
   (let [g (r/react game)]
     [:section
      #_(debug-game g)
      [:div {:class "full-width"}
-      (tool-bar g)]
+      (tool-bar g)
+      (status-bar g)]
      (svg-grid g)
-     (status-bar g)
      ]
 ))
-
 
 
 (defn on-js-reload []
   (swap! game update-in [:__figwheel_counter] inc)
 )
-
-
 
 (r/mount (board) (.getElementById js/document "game"))
 
