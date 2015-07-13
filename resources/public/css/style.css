@@ -1,22 +1,16 @@
-/* some style */
+.full-width {
+    width:100%;
+    text-align: center;
+    margin: 5px 0;;
+}
+
 .dot {
-    stroke: #eeeeff;
+    stroke: #f8f8ff;
+    opacity: 0.8;
     cursor: pointer;
 }
 
-.toolbar {
-    padding: 0;
-    margin: 0 auto;
-    display: inline;
-    position: relative;
-    width: 300px;
-}
-
-.dot-filled {
-    stroke: #eeeeff;
-}
-
 .dot:hover {
+    opacity: 1;
     stroke: #ddddee;
-    fill: #000;
 }
