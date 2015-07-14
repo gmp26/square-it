@@ -77,6 +77,15 @@
 (defn empty-squares [g]
   (filter #(unclaimed? g %) (:squares g)))
 
+(defn square-players [g square]
+  (let [as (:as g)
+        bs (:bs g)
+        [a b c d] square]
+    (reduce + #(if ()))))
+
+(defn owned-squares [g k player]
+  (filter #(owner-count-is )))
+
 (defn fill-color [g p]
   (if ((:as g) p) 
     (:a player-colours)
