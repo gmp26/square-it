@@ -80,11 +80,20 @@
 (defn square-players [g square]
   (let [as (:as g)
         bs (:bs g)
-        [a b c d] square]
-    (reduce + #(if ()))))
+        as-count (->> square
+                      (map #(if (as %) 1 0))
+                      (reduce +) )
+        bs-count (->> square
+                      (map #(if (bs %) 1 0))
+                      (reduce +) )
+        ]
+    (if (= 0 (* as-count bs-count))
+      [as-count bs-count]
+      nil
+      )))
 
-(defn owned-squares [g k player]
-  (filter #(owner-count-is )))
+(defn square-ownership [g]
+  (map #(square-players g %) (:squares g)))
 
 (defn fill-color [g p]
   (if ((:as g) p) 
@@ -100,16 +109,21 @@
 (defn px [n len]
   (str (* len (dot-sep n)) "px"))
 
+(declare reset-game)
+
 (defn up-tap [event]
   (.stopPropagation event)
-  (let [inc-lt (fn [n m] (if (< n m) (inc n) m))]
-    (swap! game #(update % :n inc-lt max-n)))
-)
+  (let [old-n (:n @game)
+        new-n (if (< old-n max-n) (inc old-n))]
+    (swap! game #(assoc % 
+                         :n new-n
+                         :squares (sq/all-squares new-n)))))
 
 (defn down-tap [event]
   (.stopPropagation event)
   (let [decz (fn [n m] (if (> n m) (- n 1) m))]
-    (swap! game #(update % :n decz min-n)))
+    (swap! game #(update % :n decz min-n))
+    (reset-game event))
 )
 
 (defn claim-point [as bs point player]
@@ -182,7 +196,7 @@
 (defn reset-game [event]
   (.stopPropagation event)
   (reset! game initial-state)
-  (swap! game #(assoc % :squares (sq/all-squares (:n initial-state)))))
+  (swap! game #(assoc % :squares (sq/all-squares (:n @game)))))
 
 (r/defc tool-bar < r/reactive [g]
   [:div {:class "btn-group toolbar"}
