@@ -42,10 +42,10 @@
   "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
   (let [x2 (+ x dx) 
         y2 (+ y dy)] 
-    [[x y]
+    #{[x y]
      [(+ x dx) (+ y dy)]
      [(+ x dx (- dy)) (+ y dx dy)]
-     [(- x dy) (+ x dx)]]))
+     [(- x dy) (+ y dx)]}))
 
 (defn sq [x y dx dy]
   [x y dx dy])
@@ -75,6 +75,7 @@
                                        (for [dy (range 0 (- n2 y dx))]
                                          (square x y dx dy)))))))))))
 
+
 ;;
 ;; square db
 ;;
@@ -95,13 +96,6 @@
   )
 
 
-(defn point-at [p]
-  (first (first (d/q '[:find ?pe
-                       :in $ ?p
-                       :where
-                       [?pe :point/p ?p]
-                       ] @conn p))))
-
 (defn find-point [p]
   (let [pe (d/q '[:find ?pe 
                   :in $ ?p
@@ -109,6 +103,18 @@
                   [?pe :point/p ?p]
                   ] @conn p)]
     pe))
+
+(defn point-at [p]
+  (first (first (find-point p))))
+
+(defn colour-at [p]
+  (first (first (d/q '[:find ?c
+                       :in $ ?p
+                       :where
+                       [?pe :point/p ?p]
+                       [?pe :point/c ?c]
+                       ] @conn p))))
+
 
 (defn points [[p1 p2 p3 p4]]
   (d/q '[:find ?pe1 ?pe2 ?pe3 ?pe4
@@ -139,7 +145,6 @@
   (d/q '[:find (count ?pe)
          :where
          [?s :square/point ?pe]
-         [?pe :point/c :none]
          ] @conn ))
 
 (defn get-point-fill [p]
@@ -148,12 +153,16 @@
          :where
          [?pe :point/c ?fill]] @conn (point-at p))) 
 
+;
+; working db/retract syntax is:
+;
+;; (d/transact! conn [[:db/retract (point-at p)
+;;                     :point/c c]])
+
 (defn occupy-point [p c]
-  (let [pe (point-at p)]
-    (if pe 
-      (do
-        (d/transact! conn [{:db/retract (point-at p)
-                            :point/c c}])
+  (let [ce (colour-at p)]
+    (if (= ce :none) 
+      (do        
         (d/transact! conn [{:db/id (point-at p)
                             :point/c c}]))
       (prn (str p " not found")))
@@ -161,6 +170,32 @@
   nil
   )
 
+(defn points-coloured [c]
+  (count (d/q '[:find ?pe
+                :in $ ?c
+                :where
+                [?pe :point/c ?c]
+                ] @conn c)))
+
+
+#_(defn empty-squares []
+  (d/q '[:find ?s ?pe1 ?pe2 ?pe3 ?pe4
+         :where
+         [?s :square/point ?pe1]
+         [?s :square/point ?pe2]
+         [?s :square/point ?pe3]
+         [?s :square/point ?pe4]
+         [?pe1 :point/c :none]
+         [?pe2 :point/c :none]
+         [?pe3 :point/c :none]
+         [?pe4 :point/c :none]
+         [(and (not= ?pe1 ?pe2)
+               (not= ?pe1 ?pe3)
+               (not= ?pe1 ?pe4)
+               (not= ?pe2 ?pe3)
+               (not= ?pe2 ?pe4)
+               (not= ?pe3 ?pe4))]
+         ] @conn ))
 
 ;; This works
 (defn test-ref1 []

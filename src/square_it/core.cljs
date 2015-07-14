@@ -3,18 +3,29 @@
               [cljs.reader :as reader]
               [cljs.pprint :refer (pprint)]
               [cljsjs.react]
-              [db.squares]))
+              [db.squares :as sq]))
 
 (enable-console-print!)
 
 (prn "-- Restart --")
 
-(def initial-state {:n 5
+(def initial-state {:n 3
                     :player :a
                     :players 1
                     :as #{}
                     :bs #{}
+                    :squares (sq/all-squares (:n initial-state))
                     })
+
+(def initial-empties )
+(def initial-a-squares ())
+(def initial-a2-squares ())
+(def initial-a3-squares ())
+(def initial-b-squares ())
+(def initial-b2-squares ())
+(def initial-b3-squares ())
+
+(defonce game (atom initial-state))
 
 (def messages {:yours "Your turn"
                :als   "Al's turn"
@@ -36,9 +47,6 @@
                       :b-win :b
                       })
 
-
-(defonce game (atom initial-state))
-
 (def bound-width 320)
 (def bound-height 320)
 (def max-n 9)
@@ -57,6 +65,17 @@
                    :b "red"
                    :none "grey"
                    })
+
+(defn unpainted? [g point]
+  (let [as (:as g)
+        bs (:bs g)]
+    (not (or (as point) (bs point)))))
+
+(defn unclaimed? [g points-in-square]
+  (every? #(unpainted? g %) points-in-square))
+
+(defn empty-squares [g]
+  (filter #(unclaimed? g %) (:squares g)))
 
 (defn fill-color [g p]
   (if ((:as g) p) 
@@ -84,6 +103,18 @@
     (swap! game #(update % :n decz min-n)))
 )
 
+(defn claim-point [as bs point player]
+
+  (if (and (not (as point)) (not (bs point)))
+    (if (= player :a)
+      (swap! game #(assoc % 
+                     :player :b
+                     :as (conj as point)))
+      (swap! game #(assoc % 
+                     :player :a
+                     :bs (conj bs point)))
+      )))
+
 (defn handle-tap [event]
   (let [p (reader/read-string (.. event -target -id))
         g @game
@@ -92,15 +123,7 @@
         pl (:player g)]
     (do 
       (.stopPropagation event)
-      (if (and (not (as p)) (not (bs p)))
-        (if (= pl :a)
-          (swap! game #(assoc % 
-                         :player :b
-                         :as (conj as p)))
-          (swap! game #(assoc % 
-                         :player :a
-                         :bs (conj bs p)))
-          ))
+      (claim-point as bs p pl)
       (.log js/console (str p)))))
 
 (r/defc svg-dot < r/reactive [n x y fill]
@@ -120,13 +143,13 @@
   )
 
 (r/defc svg-grid < r/reactive [g]
-  [:section {:key "b3" :style {:height "60vw"}}
+  [:section {:key "b3" :style {:height "60%"}}
    [:svg {:view-box (str "0 0 " bound-width " " bound-height) 
           :height "100%"
           :width "100%"
           :key "b3"}
     (let [n (:n g)] 
-      [:g {:transform (str "scale(" (* 1 (/ max-n n)) ")")}
+      [:g {:id "box" :transform (str "scale(" (* 1 (/ max-n n)) ")")}
        (for [x (range n)]
          (for [y (range n)]
            (svg-dot n x y (fill-color g [x y])) ))])]])
@@ -134,7 +157,6 @@
 (r/defc debug-game < r/reactive [g]
   [:p {:key "b1"} (str g)]
 )
-
 
 (defn active [g player-count]
   (if (= player-count (:players g)) "active" "")
@@ -150,7 +172,8 @@
 
 (defn reset-game [event]
   (.stopPropagation event)
-  (reset! game initial-state))
+  (reset! game initial-state)
+  (swap! game #(assoc % :squares (sq/all-squares (:n initial-state)))))
 
 (r/defc tool-bar < r/reactive [g]
   [:div {:class "btn-group toolbar"}
