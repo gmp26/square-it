@@ -105,59 +105,83 @@
         bs' (union (:bs g) extra-bs)]
     squares-potential as' bs' (:squares g)))
 
+(defn is4 [i n] (if (= 4 n) i nil))
+(defn is3 [i n] (if (= 3 n) i nil))
+(defn is2 [i n] (if (= 2 n) i nil))
+(defn is1 [i n] (if (= 1 n) i nil))
+
 (defn get-tactic [potential player]
   (let [px (if (= player :a) 0 1)
         opx (- 1 px)
         p-counts (map #(nth % px) potential)
         op-counts (map #(nth % opx) potential)]
-    (if (some #(= 3 %) p-counts) 
-      :win
-      (if (some #(= 3 %) op-counts)
-        :block
-        (if (some #(= 2 %) p-counts)
-          :force
-          (if (some #(= 2 %) op-counts)
-            :defend
-            (if (some #(= 1 %) p-counts)
-              :enable-force
-              :most-squares)))))
+
+    (prn p-counts)
+    (prn op-counts)
+
+    (if (or (some #(= 4 %) p-counts) (some #(= 4 %) op-counts))
+      [:game-over player]
+      (if (some #(= 3 %) p-counts) 
+        [:win (keep-indexed is3 p-counts)]
+        (if (some #(= 3 %) op-counts)
+          [:block (keep-indexed is3 op-counts)]
+          (if (some #(= 2 %) p-counts)
+            [:force (keep-indexed is2 p-counts)]
+            (if (some #(= 2 %) op-counts)
+              [:defend (keep-indexed is2 op-counts)]
+              (if (some #(= 1 %) p-counts)
+                [:enable-force (keep-indexed is1 p-counts)]
+                (if (some #(= 1 %) op-counts)
+                  [:enable-defence (keep-indexed is1 op-counts)] )
+                [:most-squares potential]))))))
     )
 )
 
-(defn attack-3-4 [detail] 
-  (prn (str "win: " detail)))
 
-(defn defend-3-4 [detail] 
-  (prn (str "block: " detail)))
+(defn empty-point? [g p] 
+  (if (and (not ((:as g) p)) (not ((:bs g) p)))
+    p
+    nil))
 
-(defn attack-2-3 [detail] 
+(defn attack-3-4 [g detail] 
+  (let [winning-square (nth (:squares g) (first detail))]
+    (prn (str "win: " detail))
+    (prn (str "winning-square: " winning-square))
+    (prn (str  "move on " (some #(empty-point? g %) winning-square)))))
+
+(defn defend-3-4 [g detail] 
+  (let [blocking-square (nth (:squares g) (first detail))]
+    (prn (str "block: " detail))
+    (prn (str "blocking-square: " blocking-square))
+    (prn (str  "move on " (some #(empty-point? g %) blocking-square)))))
+
+(defn attack-2-3 [g detail] 
   (prn (str "force: " detail)))
 
-(defn defend-2-3 [detail] 
+(defn defend-2-3 [g detail] 
   (prn (str "defend: " detail)))
 
-(defn attack-1-2 [detail] 
+(defn attack-1-2 [g detail] 
   (prn (str "enable-force: " detail)))
 
-(defn defend-1-2 [detail] 
+(defn defend-1-2 [g detail] 
   (prn (str "enable-defence: " detail)))
 
-(defn best-0 [detail] 
+(defn best-0 [g detail] 
   (prn (str "most-squares: " detail)))
 
-
-(defn apply-tactics [potential player]
+(defn apply-tactics [g potential player]
   (let [[tactic detail] (get-tactic potential player)]
-       (condp (= tactic) 
-             :win   (attack-3-4 detail)  ; 3->4
-             :block (defend-3-4 detail) ; stop 3->4
-             :force (attack-2-3 detail) ; 2->3
-             :defend (defend-2-3 detail) ; stop 2->3
-             :enable-force (attack-1-2 detail) ; best 1->2
-             :enable-defence (defend-1-2 detail)    ; stop best 1->2
-             :most-squares (best-0 detail)      ; choose point on most squares 
-             ))
-)
+    (prn (str tactic))
+    (condp = tactic 
+      :win   (attack-3-4 g detail)  ; 3->4
+      :block (defend-3-4 g detail) ; stop 3->4
+      :force (attack-2-3 g detail) ; 2->3
+      :defend (defend-2-3 g detail) ; stop 2->3
+      :enable-force (attack-1-2 g detail) ; best 1->2
+      :enable-defence (defend-1-2 g detail)    ; stop best 1->2
+      :most-squares (best-0 g detail)      ; choose point on most squares 
+      )))
 
 (defn fill-color [g p]
   (if ((:as g) p) 
