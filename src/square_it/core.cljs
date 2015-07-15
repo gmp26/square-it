@@ -18,14 +18,6 @@
                     :squares (sq/all-squares (:n initial-state))
                     })
 
-(def initial-empties )
-(def initial-a-squares ())
-(def initial-a2-squares ())
-(def initial-a3-squares ())
-(def initial-b-squares ())
-(def initial-b2-squares ())
-(def initial-b3-squares ())
-
 (defonce game (atom initial-state))
 
 (def messages {:yours "Your turn"
@@ -70,14 +62,13 @@
 (defn unpainted? [g point]
   (let [as (:as g)
         bs (:bs g)]
-    (not (or (as point) (bs point)))))
+    (if (not (or (as point) (bs point))) true nil)))
 
 (defn unclaimed? [g points-in-square]
   (every? #(unpainted? g %) points-in-square))
 
 (defn empty-squares [g]
   (filter #(unclaimed? g %) (:squares g)))
-
 
 (defn raw-corner-count [square player-point?]
   (->> square
@@ -132,11 +123,10 @@
               (if (some #(= 1 %) p-counts)
                 [:enable-force (keep-indexed is1 p-counts)]
                 (if (some #(= 1 %) op-counts)
-                  [:enable-defence (keep-indexed is1 op-counts)] )
-                [:most-squares potential]))))))
+                  [:enable-defence (keep-indexed is1 op-counts)] 
+                  [:most-squares potential])))))))
     )
 )
-
 
 (defn empty-point? [g p] 
   (if (and (not ((:as g) p)) (not ((:bs g) p)))
@@ -170,8 +160,8 @@
 (defn best-0 [g detail] 
   (prn (str "most-squares: " detail)))
 
-(defn apply-tactics [g potential player]
-  (let [[tactic detail] (get-tactic potential player)]
+(defn apply-tactics [g player]
+  (let [[tactic detail] (get-tactic (game-potential g) player)]
     (prn (str tactic))
     (condp = tactic 
       :win   (attack-3-4 g detail)  ; 3->4
@@ -197,9 +187,14 @@
 (defn px [n len]
   (str (* len (dot-sep n)) "px"))
 
+;;
+;; reset the game initially
+;;
 (declare reset-game)
+(reset-game)
 
 (defn up-tap [event]
+  "grow the game by 1 unit up to a max-n square"
   (.stopPropagation event)
   (let [old-n (:n @game)
         new-n (if (< old-n max-n) (inc old-n))]
@@ -208,6 +203,7 @@
                          :squares (sq/all-squares new-n)))))
 
 (defn down-tap [event]
+  "shrink the game by 1 unit down to a min-n square"
   (.stopPropagation event)
   (let [decz (fn [n m] (if (> n m) (- n 1) m))]
     (swap! game #(update % :n decz min-n))
@@ -250,8 +246,7 @@
             :key (str "[" x " " y "]")
             :on-click handle-tap
             :on-touch-end handle-tap
-            }]
-  )
+            }])
 
 (r/defc svg-grid < r/reactive [g]
   [:section {:key "b3" :style {:height "60%"}}
@@ -281,10 +276,14 @@
   (.stopPropagation event)
   (swap! game #(assoc % :players 2)))
 
-(defn reset-game [event]
-  (.stopPropagation event)
-  (reset! game initial-state)
-  (swap! game #(assoc % :squares (sq/all-squares (:n @game)))))
+(defn reset-game 
+  ([]
+   (reset! game initial-state)
+   (swap! game #(assoc % :squares (sq/all-squares (:n @game)))))
+  ([event] 
+   (.stopPropagation event) 
+   (reset-game)))
+
 
 (r/defc tool-bar < r/reactive [g]
   [:div {:class "btn-group toolbar"}
