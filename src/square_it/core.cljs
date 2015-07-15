@@ -1,6 +1,7 @@
 (ns ^:figwheel-always square-it.core
     (:require [rum :as r]
               [cljs.reader :as reader]
+              [clojure.set :refer (union)]
               [cljs.pprint :refer (pprint)]
               [cljsjs.react]
               [db.squares :as sq]))
@@ -77,23 +78,86 @@
 (defn empty-squares [g]
   (filter #(unclaimed? g %) (:squares g)))
 
-(defn square-players [g square]
-  (let [as (:as g)
-        bs (:bs g)
-        as-count (->> square
-                      (map #(if (as %) 1 0))
-                      (reduce +) )
-        bs-count (->> square
-                      (map #(if (bs %) 1 0))
-                      (reduce +) )
-        ]
+
+(defn raw-corner-count [square player-point?]
+  (->> square
+       (map #(if (player-point? %) 1 0))
+       (reduce +) ))
+
+(defn square-potential [as bs square]
+  (let [as-count (raw-corner-count square as)
+        bs-count (raw-corner-count square bs)]
     (if (= 0 (* as-count bs-count))
       [as-count bs-count]
       nil
       )))
 
-(defn square-ownership [g]
-  (map #(square-players g %) (:squares g)))
+(defn squares-potential [as bs squares]
+  (map #(square-potential as bs %) squares)
+)
+
+(defn game-potential [g]
+  (map #(square-potential (:as g) (:bs g) %) (:squares g))
+)
+
+(defn game-potential-after [g extra-as extra-bs]
+  (let [as' (union (:as g) extra-as) 
+        bs' (union (:bs g) extra-bs)]
+    squares-potential as' bs' (:squares g)))
+
+(defn get-tactic [potential player]
+  (let [px (if (= player :a) 0 1)
+        opx (- 1 px)
+        p-counts (map #(nth % px) potential)
+        op-counts (map #(nth % opx) potential)]
+    (if (some #(= 3 %) p-counts) 
+      :win
+      (if (some #(= 3 %) op-counts)
+        :block
+        (if (some #(= 2 %) p-counts)
+          :force
+          (if (some #(= 2 %) op-counts)
+            :defend
+            (if (some #(= 1 %) p-counts)
+              :enable-force
+              :most-squares)))))
+    )
+)
+
+(defn attack-3-4 [detail] 
+  (prn (str "win: " detail)))
+
+(defn defend-3-4 [detail] 
+  (prn (str "block: " detail)))
+
+(defn attack-2-3 [detail] 
+  (prn (str "force: " detail)))
+
+(defn defend-2-3 [detail] 
+  (prn (str "defend: " detail)))
+
+(defn attack-1-2 [detail] 
+  (prn (str "enable-force: " detail)))
+
+(defn defend-1-2 [detail] 
+  (prn (str "enable-defence: " detail)))
+
+(defn best-0 [detail] 
+  (prn (str "most-squares: " detail)))
+
+
+(defn apply-tactics [potential player]
+  (let [[tactic detail] (get-tactic potential player)]
+       (condp (= tactic) 
+             :win   (attack-3-4 detail)  ; 3->4
+             :block (defend-3-4 detail) ; stop 3->4
+             :force (attack-2-3 detail) ; 2->3
+             :defend (defend-2-3 detail) ; stop 2->3
+             :enable-force (attack-1-2 detail) ; best 1->2
+             :enable-defence (defend-1-2 detail)    ; stop best 1->2
+             :most-squares (best-0 detail)      ; choose point on most squares 
+             ))
+)
 
 (defn fill-color [g p]
   (if ((:as g) p) 
@@ -147,7 +211,7 @@
     (do 
       (.stopPropagation event)
       (claim-point as bs p pl)
-      (.log js/console (str p)))))
+      )))
 
 (r/defc svg-dot < r/reactive [n x y fill]
   [:circle {
@@ -178,7 +242,7 @@
            (svg-dot n x y (fill-color g [x y])) ))])]])
 
 (r/defc debug-game < r/reactive [g]
-  [:p {:key "b1"} (str g)]
+  [:p {:key "b1"} (str (dissoc g :squares))]
 )
 
 (defn active [g player-count]
@@ -240,7 +304,7 @@
 (r/defc board  < r/reactive []
   (let [g (r/react game)]
     [:section
-     #_(debug-game g)
+     (debug-game g)
      [:div {:class "full-width"}
       (tool-bar g)
       (status-bar g)]
