@@ -5,7 +5,7 @@
 }
 
 .dot {
-    stroke: #f8f8ff;
+    stroke: #e0f0e8;
     opacity: 0.8;
     cursor: pointer;
 }
@@ -16,10 +16,12 @@
 }
 
 .status {
-    width: 265px;
+    width: 260px;
     margin: 0 auto;
     color: white;
     text-align: center;
     font-size: 1.6em;
     font-family: "Helvetica Neue" "Arial" sans;
+    border-bottom-left-radius: 15px;
+    border-bottom-right-radius: 15px;
 }

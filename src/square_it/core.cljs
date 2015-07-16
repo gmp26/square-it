@@ -51,7 +51,7 @@
 
 (def player-colours {:a "rgb(0, 153, 255)"
                      :b "rgb(238, 68, 102)"
-                     :none "rgb(220,220,220)"
+                     :none "rgb(220,255,220)"
                      })
 
 (def player-class {:a "blue"
@@ -70,12 +70,31 @@
 (defn empty-squares [g]
   (filter #(unclaimed? g %) (:squares g)))
 
-(defn raw-corner-count [square player-point?]
+;
+; ****
+;
+(defn raw-corner-count [square player-points]
+  "count corners of a square belonging to one player"
   (->> square
-       (map #(if (player-point? %) 1 0))
+       (map #(if (player-points %) 1 0))
        (reduce +) ))
 
+(defn good-square-corners [as bs square]
+  "find and score free corners in singly-owned squares"
+  (let  [as-count (raw-corner-count square as)
+         bs-count (raw-corner-count square bs)]
+    (filter #(and (not (as %)) (not (bs %)) (= 0 (* as-count bs-count))) square)))
+
+(defn good-corners [as bs squares]
+  (map #(good-square-corners as bs %) squares)
+)
+
+(defn point-scores []
+  "count and score the number of makeable squares that each point can influence"
+  ())
+
 (defn square-potential [as bs square]
+  "return [a b] ownership counts of a square. A doubly owned square returns nil"
   (let [as-count (raw-corner-count square as)
         bs-count (raw-corner-count square bs)]
     (if (= 0 (* as-count bs-count))
@@ -84,10 +103,12 @@
       )))
 
 (defn squares-potential [as bs squares]
+  "return [a b] ownership counts of squares. A doubly owned square returns nil"
   (map #(square-potential as bs %) squares)
 )
 
 (defn game-potential [g]
+  "return [a b] ownership counts of squares in a game. A doubly owned square returns nil"
   (map #(square-potential (:as g) (:bs g) %) (:squares g))
 )
 
@@ -95,6 +116,7 @@
   (let [as' (union (:as g) extra-as) 
         bs' (union (:bs g) extra-bs)]
     squares-potential as' bs' (:squares g)))
+
 
 (defn is4 [i n] (if (= 4 n) i nil))
 (defn is3 [i n] (if (= 3 n) i nil))
@@ -191,13 +213,13 @@
 ;; reset the game initially
 ;;
 (declare reset-game)
-(reset-game)
+
 
 (defn up-tap [event]
   "grow the game by 1 unit up to a max-n square"
   (.stopPropagation event)
   (let [old-n (:n @game)
-        new-n (if (< old-n max-n) (inc old-n))]
+        new-n (if (< old-n max-n) (inc old-n) max-n)]
     (swap! game #(assoc % 
                          :n new-n
                          :squares (sq/all-squares new-n)))))
@@ -205,10 +227,15 @@
 (defn down-tap [event]
   "shrink the game by 1 unit down to a min-n square"
   (.stopPropagation event)
-  (let [decz (fn [n m] (if (> n m) (- n 1) m))]
-    (swap! game #(update % :n decz min-n))
-    (reset-game event))
-)
+  (let [old-n (:n @game)
+        new-n (if (> old-n min-n) (- old-n 1) min-n)]
+    (swap! game #(assoc % 
+                         :n new-n
+                         :squares (sq/all-squares new-n)))
+    ;; (let [decz (fn [n m] (if (> n m) (- n 1) m))]
+    ;;   (swap! game #(update % :n decz min-n))
+    ;;   (reset-game event))
+  ))
 
 (defn claim-point [as bs point player]
 
@@ -240,7 +267,7 @@
             :cy (gaps y)
             :r (units 8)
             :fill fill
-            :stroke "#eeeeee"
+            :stroke "#cceecc"
             :stroke-width (units  8)
             :id (str "[" x " " y "]")
             :key (str "[" x " " y "]")
@@ -282,7 +309,9 @@
    (swap! game #(assoc % :squares (sq/all-squares (:n @game)))))
   ([event] 
    (.stopPropagation event) 
-   (reset-game)))
+   (reset-game))
+  ([event _]
+   (reset-game event)))
 
 
 (r/defc tool-bar < r/reactive [g]
@@ -342,3 +371,4 @@
 
 (r/mount (board) (.getElementById js/document "game"))
 
+(reset-game)
