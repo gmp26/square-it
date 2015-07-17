@@ -3,11 +3,46 @@
               [cljs.reader :as reader]
               [clojure.set :refer (union)]
               [cljs.pprint :refer (pprint)]
-              [cljsjs.react]
-              [db.squares :as sq]))
+              [cljsjs.react]))
 
 (enable-console-print!)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; square and point generation
+;;
+(defn square [x y dx dy]
+  "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
+  (let [x2 (+ x dx) 
+        y2 (+ y dy)] 
+    #{[x y]
+     [(+ x dx) (+ y dy)]
+     [(+ x dx (- dy)) (+ y dx dy)]
+     [(- x dy) (+ y dx)]}))
+
+(defn onboard? [n s]
+  "true iff square s is inside square board of size n"
+  (let [inside? (fn [[x y]] (and (< x n) (< y n) (>= x 0) (>= y 0)))]
+    (every? inside? s)))
+
+(defn all-squares [n]
+  "generates all possible squares for a square board of size n"
+  (let [n1 (- n 1)
+        n2 (inc n)]
+    (filter #(onboard? n %)
+            (apply concat
+                   (for [x (range n1)]
+                     (apply concat
+                            (for [y (range n1)]
+                              (apply concat 
+                                     (for [dx (range 1 (- n2 x))]
+                                       (for [dy (range 0 (- n2 y dx))]
+                                         (square x y dx dy)))))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; state constants
+;;
 (prn "-- Restart --")
 
 (def initial-state {:n 3
@@ -15,7 +50,8 @@
                     :players 1
                     :as #{}
                     :bs #{}
-                    :squares (sq/all-squares (:n initial-state))
+                    :countdown 0
+                    :squares (all-squares (:n initial-state))
                     })
 
 (defonce game (atom initial-state))
@@ -48,6 +84,9 @@
 (def gap 36)
 (defn units [x] (* x unit))
 (defn gaps [x] (* (units (+ x 0.5)) gap))
+(def tick-interval 1000)
+(def al-think-ticks 2)
+
 
 (def player-colours {:a "rgb(0, 153, 255)"
                      :b "rgb(238, 68, 102)"
@@ -58,6 +97,11 @@
                    :b "red"
                    :none "grey"
                    })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; strategy utils
+;;
 
 (defn unpainted? [g point]
   (let [as (:as g)
@@ -179,8 +223,17 @@
 (defn defend-1-2 [g detail] 
   (prn (str "enable-defence: " detail)))
 
-(defn best-0 [g detail] 
-  (prn (str "most-squares: " detail)))
+(defn best-0 [g player detail]
+  "Find the point with the most squares"
+  (->> g
+       (:squares)
+       (mapcat vec)
+       (reduce #(update %1 %2 inc) '{})
+       (apply max-key val)
+       (key))
+
+;(reduce #(update %1 %2 inc) '{} (mapcat vec (:squares g)))
+  )
 
 (defn apply-tactics [g player]
   (let [[tactic detail] (get-tactic (game-potential g) player)]
@@ -192,7 +245,7 @@
       :defend (defend-2-3 g detail) ; stop 2->3
       :enable-force (attack-1-2 g detail) ; best 1->2
       :enable-defence (defend-1-2 g detail)    ; stop best 1->2
-      :most-squares (best-0 g detail)      ; choose point on most squares 
+      :most-squares (best-0 g player detail)      ; choose point on most squares 
       )))
 
 (defn fill-color [g p]
@@ -222,7 +275,7 @@
         new-n (if (< old-n max-n) (inc old-n) max-n)]
     (swap! game #(assoc % 
                          :n new-n
-                         :squares (sq/all-squares new-n)))))
+                         :squares (all-squares new-n)))))
 
 (defn down-tap [event]
   "shrink the game by 1 unit down to a min-n square"
@@ -231,10 +284,7 @@
         new-n (if (> old-n min-n) (- old-n 1) min-n)]
     (swap! game #(assoc % 
                          :n new-n
-                         :squares (sq/all-squares new-n)))
-    ;; (let [decz (fn [n m] (if (> n m) (- n 1) m))]
-    ;;   (swap! game #(update % :n decz min-n))
-    ;;   (reset-game event))
+                         :squares (all-squares new-n)))
   ))
 
 (defn claim-point [as bs point player]
@@ -306,7 +356,7 @@
 (defn reset-game 
   ([]
    (reset! game initial-state)
-   (swap! game #(assoc % :squares (sq/all-squares (:n @game)))))
+   (swap! game #(assoc % :squares (all-squares (:n @game)))))
   ([event] 
    (.stopPropagation event) 
    (reset-game))
@@ -326,16 +376,6 @@
     [:span {:class "fa fa-refresh"}]]
    ])
 
-
-#_(def messages {:yours "Your turn"
-               :als   "Al's turn"
-               :as-turn "Player A's turn"
-               :bs-turn "Player B's turn"
-               :you-win "Well done! You won"
-               :al-win "Oops! You lost"
-               :a-win "Player A won"
-               :b-win "Player B won"
-               })
 
 (defn get-status [g]
   (if (= (:players g) 1)
@@ -372,3 +412,31 @@
 (r/mount (board) (.getElementById js/document "game"))
 
 (reset-game)
+
+;;;;;;;;;;;;;; 
+;;
+;; timer i/o
+;;
+#_(def messages {:yours "Your turn"
+               :als   "Al's turn"
+               :as-turn "Player A's turn"
+               :bs-turn "Player B's turn"
+               :you-win "Well done! You won"
+               :al-win "Oops! You lost"
+               :a-win "Player A won"
+               :b-win "Player B won"
+               })
+
+
+(defn timeout [ms f & xs]
+  (js/setTimeout #(apply f xs) ms))
+
+(defn tick! []
+  (prn "tick"))
+
+
+
+
+(defonce tick-watch
+  (js/setInterval tick! tick-interval))
+
