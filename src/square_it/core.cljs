@@ -11,21 +11,103 @@
 ;;
 ;; square and point generation
 ;;
-(defn square [x y dx dy]
+(defn square [n x y dx dy]
+  "describes a square at bottom-left [x y] offset [dx dy] to bottom-right. False if outside board bounds."
+  (let [x2 (+ x dx)]
+    (if (< x2 n)
+      (let  [y2 (+ y dy)]
+        (if (< y2 n)
+          (let [x3 (- x2 dy)]
+            (if (>= x3 0)
+              (let [y3 (+ y2 dx)]
+                (if (< y3 n)
+                  (let [x4 (- x dy)]
+                    (if (>= x4 0)
+                      (let [y4 (+ y dy)]
+                        (if (< y4 n)
+                          #{[x y] [x2 y2] [x3 y3] [x4 y4]}
+                          ))
+                      ))
+                  ))
+              ))
+          ))
+      )))
+
+#_(defn square [x y dx dy]
   "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
   (let [x2 (+ x dx) 
         y2 (+ y dy)] 
     #{[x y]
-     [(+ x dx) (+ y dy)]
-     [(+ x dx (- dy)) (+ y dx dy)]
+     [x2 y2]
+     [(- x2 dy) (+ y2 dx)]
      [(- x dy) (+ y dx)]}))
 
-(defn onboard? [n s]
+#_(defn onboard? [n s]
   "true iff square s is inside square board of size n"
   (let [inside? (fn [[x y]] (and (< x n) (< y n) (>= x 0) (>= y 0)))]
     (every? inside? s)))
 
+;;; "100 Elapsed time: 1187 msecs" (28 -> 1177)
 (defn all-squares [n]
+  "generates all possible squares for a square board of size n"
+  (let [n1 (- n 1)
+        n2 (inc n)]
+    (mapcat
+     (fn [x]
+       (mapcat 
+        (fn [y]
+          (mapcat 
+           (fn [dx] 
+             (remove nil?
+                     (map 
+                      (fn [dy] (square n x y dx dy))        
+                      (range 0 (- n2 y dx))))) 
+           (range 1 (- n2 x))))
+        (range n1)))
+     (range n1))))
+
+
+;;; "100 Elapsed time: 2742 msecs" (28 -> 2179)
+#_(defn all-squares [n]
+  "generates all possible squares for a square board of size n"
+  (let [n1 (- n 1)
+        n2 (inc n)
+        sieve #(onboard? n %)]
+    (mapcat
+     (fn [x]
+       (mapcat 
+        (fn [y]
+          (mapcat 
+           (fn [dx] 
+             (filter sieve
+                     (map 
+                      (fn [dy] (square x y dx dy))        
+                      (range 0 (- n2 y dx))))) 
+           (range 1 (- n2 x))))
+        (range n1)))
+     (range n1))))
+
+;;; "100 Elapsed time: 2873 msecs" (28 -> 2399)
+#_(defn all-squares [n]
+  "generates all possible squares for a square board of size n"
+  (let [n1 (- n 1)
+        n2 (inc n)]
+    (filter #(onboard? n %)
+            (mapcat
+             (fn [x]
+               (mapcat 
+                (fn [y]
+                  (mapcat 
+                   (fn [dx] 
+                     (map 
+                      (fn [dy] (square x y dx dy))        
+                      (range 0 (- n2 y dx)))) 
+                   (range 1 (- n2 x))))
+                (range n1)))
+             (range n1)))))
+
+;;; "100 Elapsed time: 2834 msecs" (28 -> 2519)
+#_(defn all-squares [n]
   "generates all possible squares for a square board of size n"
   (let [n1 (- n 1)
         n2 (inc n)]
