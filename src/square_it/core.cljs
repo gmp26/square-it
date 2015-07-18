@@ -25,13 +25,7 @@
                     (if (>= x4 0)
                       (let [y4 (+ y dy)]
                         (if (< y4 n)
-                          #{[x y] [x2 y2] [x3 y3] [x4 y4]}
-                          ))
-                      ))
-                  ))
-              ))
-          ))
-      )))
+                          #{[x y] [x2 y2] [x3 y3] [x4 y4]})))))))))))))
 
 #_(defn square [x y dx dy]
   "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
@@ -47,7 +41,7 @@
   (let [inside? (fn [[x y]] (and (< x n) (< y n) (>= x 0) (>= y 0)))]
     (every? inside? s)))
 
-;;; "100 Elapsed time: 1187 msecs" (28 -> 1177)
+;;; "100 Elapsed time: 1187 msecs" (28 -> 1101)
 (defn all-squares [n]
   "generates all possible squares for a square board of size n"
   (let [n1 (- n 1)
