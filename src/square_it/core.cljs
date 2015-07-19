@@ -3,7 +3,8 @@
               [cljs.reader :as reader]
               [clojure.set :refer (union)]
               [cljs.pprint :refer (pprint)]
-              [cljsjs.react]))
+              [cljsjs.react])
+    )
 
 (enable-console-print!)
 
@@ -27,20 +28,6 @@
                         (if (< y4 n)
                           #{[x y] [x2 y2] [x3 y3] [x4 y4]})))))))))))))
 
-#_(defn square [x y dx dy]
-  "describes a square at bottom-left [x y] offset [dx dy] to bottom-right"
-  (let [x2 (+ x dx) 
-        y2 (+ y dy)] 
-    #{[x y]
-     [x2 y2]
-     [(- x2 dy) (+ y2 dx)]
-     [(- x dy) (+ y dx)]}))
-
-#_(defn onboard? [n s]
-  "true iff square s is inside square board of size n"
-  (let [inside? (fn [[x y]] (and (< x n) (< y n) (>= x 0) (>= y 0)))]
-    (every? inside? s)))
-
 ;;; "100 Elapsed time: 1187 msecs" (28 -> 1101)
 (defn all-squares [n]
   "generates all possible squares for a square board of size n"
@@ -61,59 +48,6 @@
      (range n1))))
 
 
-;;; "100 Elapsed time: 2742 msecs" (28 -> 2179)
-#_(defn all-squares [n]
-  "generates all possible squares for a square board of size n"
-  (let [n1 (- n 1)
-        n2 (inc n)
-        sieve #(onboard? n %)]
-    (mapcat
-     (fn [x]
-       (mapcat 
-        (fn [y]
-          (mapcat 
-           (fn [dx] 
-             (filter sieve
-                     (map 
-                      (fn [dy] (square x y dx dy))        
-                      (range 0 (- n2 y dx))))) 
-           (range 1 (- n2 x))))
-        (range n1)))
-     (range n1))))
-
-;;; "100 Elapsed time: 2873 msecs" (28 -> 2399)
-#_(defn all-squares [n]
-  "generates all possible squares for a square board of size n"
-  (let [n1 (- n 1)
-        n2 (inc n)]
-    (filter #(onboard? n %)
-            (mapcat
-             (fn [x]
-               (mapcat 
-                (fn [y]
-                  (mapcat 
-                   (fn [dx] 
-                     (map 
-                      (fn [dy] (square x y dx dy))        
-                      (range 0 (- n2 y dx)))) 
-                   (range 1 (- n2 x))))
-                (range n1)))
-             (range n1)))))
-
-;;; "100 Elapsed time: 2834 msecs" (28 -> 2519)
-#_(defn all-squares [n]
-  "generates all possible squares for a square board of size n"
-  (let [n1 (- n 1)
-        n2 (inc n)]
-    (filter #(onboard? n %)
-            (apply concat
-                   (for [x (range n1)]
-                     (apply concat
-                            (for [y (range n1)]
-                              (apply concat 
-                                     (for [dx (range 1 (- n2 x))]
-                                       (for [dy (range 0 (- n2 y dx))]
-                                         (square x y dx dy)))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -161,7 +95,7 @@
 (defn units [x] (* x unit))
 (defn gaps [x] (* (units (+ x 0.5)) gap))
 (def tick-interval 1000)
-(def al-think-ticks 2)
+(def al-think-time 2000)
 
 
 (def player-colours {:a "rgb(0, 153, 255)"
@@ -363,17 +297,30 @@
                          :squares (all-squares new-n)))
   ))
 
-(defn claim-point [as bs point player]
+(defn claim-a-point [as point]
+  (swap! game #(assoc % :player :b :as (conj as point))))
 
+(defn claim-b-point [bs point]
+  (swap! game #(assoc % :player :a :bs (conj bs point))))
+
+(defn claim-point [as bs point player]
   (if (and (not (as point)) (not (bs point)))
     (if (= player :a)
-      (swap! game #(assoc % 
-                     :player :b
-                     :as (conj as point)))
-      (swap! game #(assoc % 
-                     :player :a
-                     :bs (conj bs point)))
+      (claim-a-point as point)
+      (claim-b-point bs point)
       )))
+
+(defn computer-turn [g]
+  (prn "play computer turn"))
+
+(declare timeout)
+
+(defn single-player-point [g as bs point] 
+  (claim-a-point as point)
+  (timeout al-think-time #(->> g
+                               (computer-turn)
+                               (claim-b-point bs)))
+)
 
 (defn handle-tap [event]
   (let [p (reader/read-string (.. event -target -id))
@@ -383,8 +330,9 @@
         pl (:player g)]
     (do 
       (.stopPropagation event)
-      (claim-point as bs p pl)
-      )))
+      (if (= (:players g) 2)
+        (claim-point as bs p pl)
+        (single-player-point g as bs p)))))
 
 (r/defc svg-dot < r/reactive [n x y fill]
   [:circle {
@@ -515,4 +463,5 @@
 
 (defonce tick-watch
   (js/setInterval tick! tick-interval))
+
 
