@@ -401,7 +401,6 @@
     [:span {:class "fa fa-refresh"}]]
    ])
 
-
 (defn get-status [g]
   (let [pa (= (:player g) :a)
         gover (game-over? g)]
