@@ -24,7 +24,7 @@
                 (if (< y3 n)
                   (let [x4 (- x dy)]
                     (if (>= x4 0)
-                      (let [y4 (+ y dy)]
+                      (let [y4 (+ y dx)]
                         (if (< y4 n)
                           #{[x y] [x2 y2] [x3 y3] [x4 y4]})))))))))))))
 
@@ -166,11 +166,9 @@
   (map #(square-potential (:as g) (:bs g) %) (:squares g))
 )
 
-(defn game-potential-after [g extra-as extra-bs]
-  (let [as' (union (:as g) extra-as) 
-        bs' (union (:bs g) extra-bs)]
-    squares-potential as' bs' (:squares g)))
-
+(defn game-over? [g]
+  (let [pot (game-potential @game)]
+    (some #(or (= 4 (first %)) (= 4 (second %))) pot)))
 
 (defn is4 [i n] (if (= 4 n) i nil))
 (defn is3 [i n] (if (= 3 n) i nil))
@@ -183,8 +181,8 @@
         p-counts (map #(nth % px) potential)
         op-counts (map #(nth % opx) potential)]
 
-    (prn p-counts)
-    (prn op-counts)
+    ;(prn p-counts)
+    ;(prn op-counts)
 
     (if (or (some #(= 4 %) p-counts) (some #(= 4 %) op-counts))
       [:game-over player]
@@ -311,7 +309,10 @@
       )))
 
 (defn computer-turn [g]
-  (prn "play computer turn"))
+  (prn "play computer turn")
+  (apply-tactics g :b))
+
+
 
 (declare timeout)
 
@@ -402,10 +403,16 @@
 
 
 (defn get-status [g]
-  (if (= (:players g) 1)
-    (if (= (:player g) :a) :yours :als)
-    (if (= (:player g) :a) :as-turn :bs-turn)
-    ))
+  (let [pa (= (:player g) :a)
+        gover (game-over? g)]
+    (if (= (:players g) 1)
+      (if gover
+        (if pa :you-win :al-win)
+        (if pa :yours :als))
+      (if gover
+        (if pa :b-win :a-win)
+        (if pa :as-turn :bs-turn))
+      )))
 
 (defn get-message [status]
   (status messages))
@@ -441,25 +448,12 @@
 ;;
 ;; timer i/o
 ;;
-#_(def messages {:yours "Your turn"
-               :als   "Al's turn"
-               :as-turn "Player A's turn"
-               :bs-turn "Player B's turn"
-               :you-win "Well done! You won"
-               :al-win "Oops! You lost"
-               :a-win "Player A won"
-               :b-win "Player B won"
-               })
-
 
 (defn timeout [ms f & xs]
   (js/setTimeout #(apply f xs) ms))
 
 (defn tick! []
   (prn "tick"))
-
-
-
 
 (defonce tick-watch
   (js/setInterval tick! tick-interval))
