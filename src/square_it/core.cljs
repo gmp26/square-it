@@ -181,8 +181,9 @@
         p-counts (map #(nth % px) potential)
         op-counts (map #(nth % opx) potential)]
 
-    ;(prn p-counts)
-    ;(prn op-counts)
+    (prn (str "player" player))
+    (prn (str "al" p-counts))
+    (prn (str "you" op-counts))
 
     (if (or (some #(= 4 %) p-counts) (some #(= 4 %) op-counts))
       [:game-over player]
@@ -197,8 +198,11 @@
               (if (some #(= 1 %) p-counts)
                 [:enable-force (keep-indexed is1 p-counts)]
                 (if (some #(= 1 %) op-counts)
-                  [:enable-defence (keep-indexed is1 op-counts)] 
-                  [:most-squares potential])))))))
+                  [:enable-defence (keep-indexed is1 op-counts)]
+                  (if (not-every? #(or (= 0 %) (nil? %)) potential)
+                    [:most-squares p-counts]
+                    [:game-over nil])
+                  )))))))
     )
 )
 
@@ -207,33 +211,67 @@
     p
     nil))
 
-(defn attack-3-4 [g detail] 
-  (let [winning-square (nth (:squares g) (first detail))]
-    (prn (str "win: " detail))
+(defn best-points [m] 
+  (let [max-val (apply max (vals m))]
+    (map key (filter #(let [[k v] %] (= max-val v)) m))))
+
+(defn deb [x] 
+  (prn x)
+  x)
+
+(defn best-tactical-move [g square-indices]
+  "Choose a point to hit from the points inside the critical squares"
+  ;; Fetch the squares to consider
+  (->> square-indices
+       (map #(nth (:squares g) %))  ;; convert to square point sets
+       (mapcat vec) ;; then to a vector of points
+       (filter #(empty-point? g %)) ;; remove already claimed points
+       (reduce #(update %1 %2 inc) '{}) ;; count occurrences
+       (deb)
+       (best-points)
+       (deb)
+       (rand-nth)
+       (deb))
+)
+
+(defn attack-3-4 [g square-indices] 
+  (let [winning-square (nth (:squares g) (first square-indices))]
+    (prn (str "win: " square-indices))
     (prn (str "winning-square: " winning-square))
-    (prn (str  "move on " (some #(empty-point? g %) winning-square)))))
+    (prn (str  "move on " (some #(empty-point? g %) winning-square)))
+    (best-tactical-move g square-indices)
+    ))
 
-(defn defend-3-4 [g detail] 
-  (let [blocking-square (nth (:squares g) (first detail))]
-    (prn (str "block: " detail))
+(defn defend-3-4 [g square-indices] 
+  (let [blocking-square (nth (:squares g) (first square-indices))]
+    (prn (str "block: " square-indices))
     (prn (str "blocking-square: " blocking-square))
-    (prn (str  "move on " (some #(empty-point? g %) blocking-square)))))
+    (prn (str  "move on " (some #(empty-point? g %) blocking-square)))
+    (best-tactical-move g square-indices)
+    ))
 
-(defn attack-2-3 [g detail] 
-  (prn (str "force: " detail)))
+(defn attack-2-3 [g square-indices] 
+  (prn (str "force: " square-indices))
+  (best-tactical-move g square-indices)
+  )
 
-(defn defend-2-3 [g detail] 
-  (prn (str "defend: " detail)))
+(defn defend-2-3 [g square-indices] 
+  (prn (str "defend: " square-indices))
+  (best-tactical-move g square-indices))
 
-(defn attack-1-2 [g detail] 
-  (prn (str "enable-force: " detail)))
+(defn attack-1-2 [g square-indices] 
+  (prn (str "enable-force: " square-indices))
+  (best-tactical-move g square-indices))
 
-(defn defend-1-2 [g detail] 
-  (prn (str "enable-defence: " detail)))
+(defn defend-1-2 [g square-indices] 
+  (prn (str "enable-defence: " square-indices))
+  (best-tactical-move g square-indices))
 
-(defn best-0 [g player detail]
+(defn best-0 [g player square-indices]
   "Find the point with the most squares"
-  (->> g
+  (best-tactical-move g square-indices)
+  ;; TODO: is this code repeated
+  #_(->> g
        (:squares)
        (mapcat vec)
        (reduce #(update %1 %2 inc) '{})
@@ -244,16 +282,17 @@
   )
 
 (defn apply-tactics [g player]
-  (let [[tactic detail] (get-tactic (game-potential g) player)]
+  (let [[tactic square-indices] (get-tactic (game-potential g) player)]
     (prn (str tactic))
     (condp = tactic 
-      :win   (attack-3-4 g detail)  ; 3->4
-      :block (defend-3-4 g detail) ; stop 3->4
-      :force (attack-2-3 g detail) ; 2->3
-      :defend (defend-2-3 g detail) ; stop 2->3
-      :enable-force (attack-1-2 g detail) ; best 1->2
-      :enable-defence (defend-1-2 g detail)    ; stop best 1->2
-      :most-squares (best-0 g player detail)      ; choose point on most squares 
+      :win   (attack-3-4 g square-indices) ; 3->4
+      :block (defend-3-4 g square-indices) ; stop 3->4
+      :force (attack-2-3 g square-indices) ; 2->3
+      :defend (defend-2-3 g square-indices) ; stop 2->3
+      :enable-force (attack-1-2 g square-indices) ; best 1->2
+      :enable-defence (defend-1-2 g square-indices) ; stop best 1->2
+      :most-squares (best-0 g player square-indices) ; choose point on most squares
+      :game-over (prn "Game Over" square-indices)
       )))
 
 (defn fill-color [g p]
@@ -333,7 +372,9 @@
       (.stopPropagation event)
       (if (= (:players g) 2)
         (claim-point as bs p pl)
-        (single-player-point g as bs p)))))
+        (when (= pl :a)
+          (single-player-point g as bs p))))))
+
 
 (r/defc svg-dot < r/reactive [n x y fill]
   [:circle {
@@ -447,14 +488,9 @@
 ;;
 ;; timer i/o
 ;;
-
 (defn timeout [ms f & xs]
+  "Call f, optionally with arguments xs, after ms milliseconds"
   (js/setTimeout #(apply f xs) ms))
 
-(defn tick! []
-  (prn "tick"))
-
-(defonce tick-watch
-  (js/setInterval tick! tick-interval))
 
 
