@@ -175,35 +175,42 @@
 (defn is2 [i n] (if (= 2 n) i nil))
 (defn is1 [i n] (if (= 1 n) i nil))
 
+;;
+;; debugger
+;;
+(defn deb [x] 
+  (prn x)
+  x)
+
 (defn get-tactic [potential player]
   (let [px (if (= player :a) 0 1)
         opx (- 1 px)
         p-counts (map #(nth % px) potential)
         op-counts (map #(nth % opx) potential)]
 
+    (prn (str "potential " potential))
     (prn (str "player" player))
     (prn (str "al" p-counts))
     (prn (str "you" op-counts))
 
-    (if (or (some #(= 4 %) p-counts) (some #(= 4 %) op-counts))
-      [:game-over player]
-      (if (some #(= 3 %) p-counts) 
-        [:win (keep-indexed is3 p-counts)]
-        (if (some #(= 3 %) op-counts)
-          [:block (keep-indexed is3 op-counts)]
-          (if (some #(= 2 %) p-counts)
-            [:force (keep-indexed is2 p-counts)]
-            (if (some #(= 2 %) op-counts)
-              [:defend (keep-indexed is2 op-counts)]
-              (if (some #(= 1 %) p-counts)
-                [:enable-force (keep-indexed is1 p-counts)]
-                (if (some #(= 1 %) op-counts)
-                  [:enable-defence (keep-indexed is1 op-counts)]
-                  (if (not-every? #(or (= 0 %) (nil? %)) potential)
-                    [:most-squares p-counts]
-                    [:game-over nil])
-                  )))))))
-    )
+    (deb (if (or (some #(= 4 %) p-counts) (some #(= 4 %) op-counts))
+           [:game-over player]
+           (if (some #(= 3 %) p-counts) 
+             [:win (keep-indexed is3 p-counts)]
+             (if (some #(= 3 %) op-counts)
+               [:block (keep-indexed is3 op-counts)]
+               (if (some #(= 2 %) p-counts)
+                 [:force (keep-indexed is2 p-counts)]
+                 (if (some #(= 2 %) op-counts)
+                   [:defend (keep-indexed is2 op-counts)]
+                   (if (some #(= 1 %) p-counts)
+                     [:enable-force (keep-indexed is1 p-counts)]
+                     (if (some #(= 1 %) op-counts)
+                       [:enable-defence (keep-indexed is1 op-counts)]
+                       (if (not-every? #(or (= 0 %) (nil? %)) potential)
+                         [:most-squares p-counts]
+                         [:game-over nil])
+                       )))))))))
 )
 
 (defn empty-point? [g p] 
@@ -214,10 +221,6 @@
 (defn best-points [m] 
   (let [max-val (apply max (vals m))]
     (map key (filter #(let [[k v] %] (= max-val v)) m))))
-
-(defn deb [x] 
-  (prn x)
-  x)
 
 (defn best-tactical-move [g square-indices]
   "Choose a point to hit from the points inside the critical squares"
@@ -243,17 +246,12 @@
     ))
 
 (defn defend-3-4 [g square-indices] 
-  (let [blocking-square (nth (:squares g) (first square-indices))]
-    (prn (str "block: " square-indices))
-    (prn (str "blocking-square: " blocking-square))
-    (prn (str  "move on " (some #(empty-point? g %) blocking-square)))
-    (best-tactical-move g square-indices)
-    ))
+  (prn (str "block: " square-indices))
+  (best-tactical-move g square-indices))
 
 (defn attack-2-3 [g square-indices] 
   (prn (str "force: " square-indices))
-  (best-tactical-move g square-indices)
-  )
+  (best-tactical-move g square-indices))
 
 (defn defend-2-3 [g square-indices] 
   (prn (str "defend: " square-indices))
@@ -269,21 +267,10 @@
 
 (defn best-0 [g player square-indices]
   "Find the point with the most squares"
-  (best-tactical-move g square-indices)
-  ;; TODO: is this code repeated
-  #_(->> g
-       (:squares)
-       (mapcat vec)
-       (reduce #(update %1 %2 inc) '{})
-       (apply max-key val)
-       (key))
-
-;(reduce #(update %1 %2 inc) '{} (mapcat vec (:squares g)))
-  )
+  (best-tactical-move g square-indices))
 
 (defn apply-tactics [g player]
   (let [[tactic square-indices] (get-tactic (game-potential g) player)]
-    (prn (str tactic))
     (condp = tactic 
       :win   (attack-3-4 g square-indices) ; 3->4
       :block (defend-3-4 g square-indices) ; stop 3->4
@@ -355,9 +342,13 @@
 
 (declare timeout)
 
+#_(defn test-pp [g as point]
+  (claim-a-point as point)
+  (timeout 2000 #(prn @game)))
+
 (defn single-player-point [g as bs point] 
   (claim-a-point as point)
-  (timeout al-think-time #(->> g
+  (timeout al-think-time #(->> @game
                                (computer-turn)
                                (claim-b-point bs)))
 )
@@ -447,7 +438,7 @@
         gover (game-over? g)]
     (if (= (:players g) 1)
       (if gover
-        (if pa :you-win :al-win)
+        (if pa :al-win :you-win)
         (if pa :yours :als))
       (if gover
         (if pa :b-win :a-win)
