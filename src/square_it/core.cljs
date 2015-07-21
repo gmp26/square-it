@@ -55,12 +55,12 @@
 ;;
 (prn "-- Restart --")
 
-(def initial-state {:n 3
+(def initial-state {:n 5
                     :player :a
                     :players 1
+                    :a-first true
                     :as #{}
                     :bs #{}
-                    :countdown 0
                     :squares (all-squares (:n initial-state))
                     })
 
@@ -74,6 +74,7 @@
                :al-win "Oops! You lost"
                :a-win "Player A won"
                :b-win "Player B won"
+               :draw  "It's a draw!"
                })
 
 (def message-colours {:yours :a
@@ -84,6 +85,7 @@
                       :al-win :b
                       :a-win :a
                       :b-win :b
+                      :draw :draw
                       })
 
 (def bound-width 320)
@@ -101,11 +103,13 @@
 (def player-colours {:a "rgb(0, 153, 255)"
                      :b "rgb(238, 68, 102)"
                      :none "rgb(220,255,220)"
+                     :draw "rgb(74, 157, 97)"
                      })
 
 (def player-class {:a "blue"
                    :b "red"
                    :none "grey"
+                   :draw "draw"
                    })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -166,9 +170,14 @@
   (map #(square-potential (:as g) (:bs g) %) (:squares g))
 )
 
+(defn game-drawn? [g]
+  (every? nil? (game-potential g)))
+
 (defn game-over? [g]
-  (let [pot (game-potential @game)]
-    (some #(or (= 4 (first %)) (= 4 (second %))) pot)))
+  (let [pot (game-potential g)]
+    (or 
+     (some #(or (= 4 (first %)) (= 4 (second %))) pot)
+     (game-drawn? g))))
 
 (defn is4 [i n] (if (= 4 n) i nil))
 (defn is3 [i n] (if (= 3 n) i nil))
@@ -226,7 +235,8 @@
   "Choose a point to hit from the points inside the critical squares"
   ;; Fetch the squares to consider
   (->> square-indices
-       (map #(nth (:squares g) %))  ;; convert to square point sets
+       deb
+       (map #(if (nil? %) nil (nth (:squares g) %))) ;; convert to square point sets
        (mapcat vec) ;; then to a vector of points
        (filter #(empty-point? g %)) ;; remove already claimed points
        (reduce #(update %1 %2 inc) '{}) ;; count occurrences
@@ -301,13 +311,12 @@
 ;;
 (declare reset-game)
 
-
 (defn up-tap [event]
   "grow the game by 1 unit up to a max-n square"
   (.stopPropagation event)
   (let [old-n (:n @game)
         new-n (if (< old-n max-n) (inc old-n) max-n)]
-    (swap! game #(assoc % 
+    (swap! game #(assoc % :as #{} :bs #{}
                          :n new-n
                          :squares (all-squares new-n)))))
 
@@ -316,7 +325,7 @@
   (.stopPropagation event)
   (let [old-n (:n @game)
         new-n (if (> old-n min-n) (- old-n 1) min-n)]
-    (swap! game #(assoc % 
+    (swap! game #(assoc % :as #{} :bs #{}
                          :n new-n
                          :squares (all-squares new-n)))
   ))
@@ -347,10 +356,11 @@
   (timeout 2000 #(prn @game)))
 
 (defn single-player-point [g as bs point] 
-  (claim-a-point as point)
-  (timeout al-think-time #(->> @game
-                               (computer-turn)
-                               (claim-b-point bs)))
+  (when (not (game-over? g)) (claim-a-point as point))
+  (when (not (game-over? @game))
+    (timeout al-think-time #(->> @game
+                                 (computer-turn)
+                                 (claim-b-point bs))))
 )
 
 (defn handle-tap [event]
@@ -412,38 +422,44 @@
 
 (defn reset-game 
   ([]
-   (reset! game initial-state)
-   (swap! game #(assoc % :squares (all-squares (:n @game)))))
+   #_(reset! game initial-state)
+   (swap! game #(assoc % :squares (all-squares (:n @game))
+                         :player :a
+                         :as #{}
+                         :bs #{})))
   ([event] 
    (.stopPropagation event) 
    (reset-game))
   ([event _]
    (reset-game event)))
 
-
 (r/defc tool-bar < r/reactive [g]
-  [:div {:class "btn-group toolbar"}
-   [:button {:type "button" :class "btn btn-warning" :key "bu1" :on-click down-tap :on-touch-end down-tap} 
-    [:span {:class "fa fa-chevron-down"}]]
-   [:button {:type "button" :class "btn btn-warning" :key "bu2" :on-click up-tap :on-touch-end up-tap} 
-    [:span {:class "fa fa-chevron-up"}]]
-   [:button {:type "button" :class (str "btn btn-default " (active g 1)) :key "bu4" :on-click one-player :on-touch-end one-player} "1 player"]
-   [:button {:type "button" :class (str "btn btn-default " (active g 2)) :key "bu5" :on-click two-player :on-touch-end two-player} "2 player"]
-   [:button {:type "button" :class "btn btn-danger" :key "bu3" :on-click reset-game :on-touch-end reset-game} 
-    [:span {:class "fa fa-refresh"}]]
+  [:div
+   [:div {:class "btn-group toolbar"}
+    [:button {:type "button" :class "btn btn-warning" :key "bu1" :on-click down-tap :on-touch-end down-tap} 
+     [:span {:class "fa fa-chevron-down"}]]
+    [:button {:type "button" :class "btn btn-warning" :key "bu2" :on-click up-tap :on-touch-end up-tap} 
+     [:span {:class "fa fa-chevron-up"}]]
+    [:button {:type "button" :class (str "btn btn-default " (active g 1)) :key "bu4" :on-click one-player :on-touch-end one-player} "1 player"]
+    [:button {:type "button" :class (str "btn btn-default " (active g 2)) :key "bu5" :on-click two-player :on-touch-end two-player} "2 player"]
+    [:button {:type "button" :class "btn btn-danger" :key "bu3" :on-click reset-game :on-touch-end reset-game} 
+     [:span {:class "fa fa-refresh"}]]
+    ]
    ])
 
 (defn get-status [g]
   (let [pa (= (:player g) :a)
         gover (game-over? g)]
-    (if (= (:players g) 1)
-      (if gover
-        (if pa :al-win :you-win)
-        (if pa :yours :als))
-      (if gover
-        (if pa :b-win :a-win)
-        (if pa :as-turn :bs-turn))
-      )))
+    (if (game-drawn? g)
+      :draw
+      (if (= (:players g) 1)
+        (if gover
+          (if pa :al-win :you-win)
+          (if pa :yours :als))
+        (if gover
+          (if pa :b-win :a-win)
+          (if pa :as-turn :bs-turn))
+        ))))
 
 (defn get-message [status]
   (status messages))
@@ -458,11 +474,12 @@
 (r/defc board  < r/reactive []
   (let [g (r/react game)]
     [:section
-     (debug-game g)
      [:div {:class "full-width"}
+      [:h1 "Square it!"]
       (tool-bar g)
       (status-bar g)]
      (svg-grid g)
+     (debug-game g)
      ]
 ))
 
