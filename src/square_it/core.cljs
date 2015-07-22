@@ -1,9 +1,10 @@
 (ns ^:figwheel-always square-it.core
     (:require [rum :as r]
               [cljs.reader :as reader]
-              [clojure.set :refer (union)]
+              [clojure.set :refer (union intersection)]
               [cljs.pprint :refer (pprint)]
-              [cljsjs.react])
+              [cljsjs.react]
+              )
     )
 
 (enable-console-print!)
@@ -204,8 +205,11 @@
        (deb))
 )
 
-
 (declare empty-point?)
+
+(defn best-point-counts [m] 
+  (let [max-val (apply max (vals m))]
+    [(map key (filter #(let [[k v] %] (= max-val v)) m)) max-val]))
 
 (defn count-good-points [square-indices]
   (->> square-indices
@@ -217,20 +221,25 @@
 (defn fork-check [player p-counts op-counts]
   (deb p-counts)
   (deb op-counts)
-  (if (or (some #(= 2 %) p-counts) (some #(= 2 %) op-counts))
-    (do  
-      (if (some #(= 2 %) p-counts)
-        (do (prn "me") (deb (count-good-points p-counts))))
-        
-      (if (some #(= 2 %) op-counts)
-        (do (prn "op") (deb (count-good-points op-counts)))))
+  (if (and (some #(= 2 %) p-counts) (some #(= 2 %) op-counts))
+    (let [[p pc :as best-p-counts] (best-point-counts (count-good-points (keep-indexed is2 p-counts)))
+          [op opc :as best-op-counts] (best-point-counts (count-good-points (keep-indexed is2 op-counts)))
+          common-points (intersection (set p) (set op))]
+      (if (empty? common-points )
+        (if (>= pc opc)
+          (rand-nth p)
+          (rand-nth op))
+        (rand-nth (vec common-points)))
+      #_(prn (str "me: " best-p-counts)) 
+      #_(prn (str "op: " best-op-counts)) 
+      )
     nil)
   )
 
 (defn wrapped-fork []
-  (let [g (game-potential @game)
-        p-counts (map #(first (rest %)) g)
-        op-counts (map first g)]
+  (let [gp (game-potential @game)
+        p-counts (map #(first (rest %)) gp)
+        op-counts (map first gp)]
     (fork-check :b p-counts op-counts)
 ))
 
