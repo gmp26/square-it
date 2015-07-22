@@ -14,7 +14,7 @@
 ;; square and point generation
 ;;
 (defn square [n x y dx dy]
-  "describes a square at bottom-left [x y] offset [dx dy] to bottom-right. False if outside board bounds."
+  "a square, bottom-left [x y], offset [dx dy] to bottom-right. Nil if any point lies outside game board."
   (let [x2 (+ x dx)]
     (if (< x2 n)
       (let  [y2 (+ y dy)]
