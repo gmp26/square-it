@@ -183,13 +183,62 @@
 (defn is3 [i n] (if (= 3 n) i nil))
 (defn is2 [i n] (if (= 2 n) i nil))
 (defn is1 [i n] (if (= 1 n) i nil))
-
 ;;
 ;; debugger
 ;;
 (defn deb [x] 
   (prn x)
   x)
+
+#_(defn best-tactical-move [g square-indices]
+  (->> square-indices
+       deb
+       (map #(if (nil? %) nil (nth (:squares g) %))) ;; convert to square point sets
+       (mapcat vec) ;; then to a vector of points
+       (filter #(empty-point? g %)) ;; remove already claimed points
+       (reduce #(update %1 %2 inc) '{}) ;; count occurrences
+       (deb)
+       (best-points)
+       (deb)
+       (rand-nth)
+       (deb))
+)
+
+
+(declare empty-point?)
+
+(defn count-good-points [square-indices]
+  (->> square-indices
+       (map #(if (nil? %) nil (nth (:squares @game) %))) ;; convert to square point sets
+       (mapcat vec) ;; then to a vector of points
+       (filter #(empty-point? @game %)) ;; remove already claimed points
+       (reduce #(update %1 %2 inc) '{}))) ;; count occurrences
+
+(defn fork-check [player p-counts op-counts]
+  (deb p-counts)
+  (deb op-counts)
+  (if (or (some #(= 2 %) p-counts) (some #(= 2 %) op-counts))
+    (do  
+      (if (some #(= 2 %) p-counts)
+        (do (prn "me") (deb (count-good-points p-counts))))
+        
+      (if (some #(= 2 %) op-counts)
+        (do (prn "op") (deb (count-good-points op-counts)))))
+    nil)
+  )
+
+(defn wrapped-fork []
+  (let [g (game-potential @game)
+        p-counts (map #(first (rest %)) g)
+        op-counts (map first g)]
+    (fork-check :b p-counts op-counts)
+))
+
+(defn setup []
+  (swap! game #(assoc % 
+                  :as #{[1 2] [2 1] [3 0]}
+                  :bs #{[2 3] [2 2]}
+                       ))) 
 
 (defn get-tactic [potential player]
   (let [px (if (= player :a) 0 1)
@@ -208,19 +257,24 @@
              [:win (keep-indexed is3 p-counts)]
              (if (some #(= 3 %) op-counts)
                [:block (keep-indexed is3 op-counts)]
-               (if (some #(= 2 %) p-counts)
-                 [:force (keep-indexed is2 p-counts)]
-                 (if (some #(= 2 %) op-counts)
-                   [:defend (keep-indexed is2 op-counts)]
-                   (if (some #(= 1 %) p-counts)
-                     [:enable-force (keep-indexed is1 p-counts)]
-                     (if (some #(= 1 %) op-counts)
-                       [:enable-defence (keep-indexed is1 op-counts)]
-                       (if (not-every? #(or (= 0 %) (nil? %)) potential)
-                         [:most-squares p-counts]
-                         [:game-over nil])
-                       )))))))))
-)
+               (let [fork (fork-check player p-counts op-counts)]
+                 (if fork
+                   fork
+                   (if (some #(= 2 %) p-counts)
+                     [:force (keep-indexed is2 p-counts)]
+                     (if (some #(= 2 %) op-counts)
+                       [:defend (keep-indexed is2 op-counts)]
+                       (if (some #(= 1 %) p-counts)
+                         [:enable-force (keep-indexed is1 p-counts)]
+                         (if (some #(= 1 %) op-counts)
+                           [:enable-defence (keep-indexed is1 op-counts)]
+                           (if (not-every? #(or (= 0 %) (nil? %)) potential)
+                             [:most-squares p-counts]
+                             [:game-over nil])
+                           ))))))))))))
+
+(defn tactic []
+  (get-tactic (game-potential @game) :b))
 
 (defn empty-point? [g p] 
   (if (and (not ((:as g) p)) (not ((:bs g) p)))
@@ -259,6 +313,14 @@
   (prn (str "block: " square-indices))
   (best-tactical-move g square-indices))
 
+(defn fork-attack [g square-indices] 
+  (prn (str "force: " square-indices))
+  (best-tactical-move g square-indices))
+
+(defn fork-defend [g square-indices] 
+  (prn (str "force: " square-indices))
+  (best-tactical-move g square-indices))
+
 (defn attack-2-3 [g square-indices] 
   (prn (str "force: " square-indices))
   (best-tactical-move g square-indices))
@@ -284,6 +346,8 @@
     (condp = tactic 
       :win   (attack-3-4 g square-indices) ; 3->4
       :block (defend-3-4 g square-indices) ; stop 3->4
+      :fork-attack (fork-attack g square-indices) ; Create 2 3-squares
+      :fork-defend (fork-defend g square-indices) ; Block creation of 2 3-squares
       :force (attack-2-3 g square-indices) ; 2->3
       :defend (defend-2-3 g square-indices) ; stop 2->3
       :enable-force (attack-1-2 g square-indices) ; best 1->2
@@ -490,7 +554,7 @@
 
 (r/mount (board) (.getElementById js/document "game"))
 
-(reset-game)
+#_(reset-game)
 
 ;;;;;;;;;;;;;; 
 ;;
