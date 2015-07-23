@@ -13,7 +13,7 @@
 ;;
 ;; square and point generation
 ;;
-(defn square [n x y dx dy]
+(defn square' [n x y dx dy]
   "a square, bottom-left [x y], offset [dx dy] to bottom-right. Nil if any point lies outside game board."
   (let [x2 (+ x dx)]
     (if (< x2 n)
@@ -28,6 +28,17 @@
                       (let [y4 (+ y dx)]
                         (if (< y4 n)
                           #{[x y] [x2 y2] [x3 y3] [x4 y4]})))))))))))))
+
+(defn square [n x y dx dy]
+  (let [x2 (+ x dx)
+        y2 (+ y dy)
+        x3 (- x2 dy)
+        y3 (+ y2 dx)
+        x4 (- x dy)
+        y4 (+ y dx)]
+    (if (and (< x2 n) (< y2 n) (>= x3 0) (< y3 n) (>= x4 0) (< y4 n))
+      #{[x y] [x2 y2] [x3 y3] [x4 y4]}))
+)
 
 ;;; "100 Elapsed time: 1187 msecs" (28 -> 1101)
 (defn all-squares [n]
@@ -506,6 +517,11 @@
   ([event _]
    (reset-game event)))
 
+(defn start-game []
+  (if (empty? (:squares @game))
+    (reset-game))
+  )
+
 (r/defc tool-bar < r/reactive [g]
   [:div
    [:div {:class "btn-group toolbar"}
@@ -556,14 +572,11 @@
      ]
 ))
 
-
 (defn on-js-reload []
   (swap! game update-in [:__figwheel_counter] inc)
 )
 
 (r/mount (board) (.getElementById js/document "game"))
-
-#_(reset-game)
 
 ;;;;;;;;;;;;;; 
 ;;
@@ -572,6 +585,8 @@
 (defn timeout [ms f & xs]
   "Call f, optionally with arguments xs, after ms milliseconds"
   (js/setTimeout #(apply f xs) ms))
+
+(start-game)
 
 
 
