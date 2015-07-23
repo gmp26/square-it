@@ -11,25 +11,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; square and point generation
+;; square generation
 ;;
-(defn square' [n x y dx dy]
-  "a square, bottom-left [x y], offset [dx dy] to bottom-right. Nil if any point lies outside game board."
-  (let [x2 (+ x dx)]
-    (if (< x2 n)
-      (let  [y2 (+ y dy)]
-        (if (< y2 n)
-          (let [x3 (- x2 dy)]
-            (if (>= x3 0)
-              (let [y3 (+ y2 dx)]
-                (if (< y3 n)
-                  (let [x4 (- x dy)]
-                    (if (>= x4 0)
-                      (let [y4 (+ y dx)]
-                        (if (< y4 n)
-                          #{[x y] [x2 y2] [x3 y3] [x4 y4]})))))))))))))
-
 (defn square [n x y dx dy]
+  "a square, bottom-left [x y], offset [dx dy] to bottom-right. Nil if any point lies outside game board."
   (let [x2 (+ x dx)
         y2 (+ y dy)
         x3 (- x2 dy)
@@ -42,7 +27,7 @@
 
 ;;; "100 Elapsed time: 1187 msecs" (28 -> 1101)
 (defn all-squares [n]
-  "generates all possible squares for a square board of size n"
+  "generate all possible squares for a square board of size n"
   (let [n1 (- n 1)
         n2 (inc n)]
     (mapcat
@@ -58,8 +43,6 @@
            (range 1 (- n2 x))))
         (range n1)))
      (range n1))))
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -79,7 +62,7 @@
 (defonce game (atom initial-state))
 
 (def messages {:yours "Your turn"
-               :als   "Al's turn"
+               :als   "My turn"
                :as-turn "Player A's turn"
                :bs-turn "Player B's turn"
                :you-win "Well done! You won"
@@ -136,18 +119,6 @@
   ([s x]
    (prn (str s x)) x))
 
-
-(defn unpainted? [g point]
-  (let [as (:as g)
-        bs (:bs g)]
-    (if (not (or (as point) (bs point))) true nil)))
-
-(defn unclaimed? [g points-in-square]
-  (every? #(unpainted? g %) points-in-square))
-
-(defn empty-squares [g]
-  (filter #(unclaimed? g %) (:squares g)))
-
 ;
 ; ****
 ;
@@ -174,7 +145,6 @@
 (defn game-potential [g]
   "return [a b] ownership counts of squares in a game. A doubly owned square returns nil"
   (squares-potential (:as g) (:bs g) (:squares g))
-  #_(map #(square-potential (:as g) (:bs g) %) (:squares g))
 )
 
 (defn game-drawn? [g]
@@ -186,26 +156,10 @@
      (some #(or (= 4 (first %)) (= 4 (second %))) pot)
      (game-drawn? g))))
 
-(defn is4 [i n] (if (= 4 n) i nil))
-(defn is3 [i n] (if (= 3 n) i nil))
-(defn is2 [i n] (if (= 2 n) i nil))
-(defn is1 [i n] (if (= 1 n) i nil))
-
-#_(defn best-tactical-move [g square-indices]
-  (->> square-indices
-       deb
-       (map #(if (nil? %) nil (nth (:squares g) %))) ;; convert to square point sets
-       (mapcat vec) ;; then to a vector of points
-       (filter #(empty-point? g %)) ;; remove already claimed points
-       (reduce #(update %1 %2 inc) '{}) ;; count occurrences
-       (deb)
-       (best-points)
-       (deb)
-       (rand-nth)
-       (deb))
-)
-
-(declare empty-point?)
+(defn empty-point? [g p] 
+  (if (and (not ((:as g) p)) (not ((:bs g) p)))
+    p
+    nil))
 
 (defn best-point-counts [m] 
   (let [max-val (apply max (vals m))]
@@ -213,9 +167,9 @@
 
 (defn count-good-points [square-indices]
   (->> square-indices
-       (deb "square-indices ")
+       #_(deb "square-indices ")
        (map #(if (nil? %) nil (nth (:squares @game) %))) ;; convert to square point sets
-       (deb "kept square points ")
+       #_(deb "kept square points ")
        (mapcat vec) ;; then to a vector of points
        (filter #(empty-point? @game %)) ;; remove already claimed points
        (reduce #(update %1 %2 inc) '{}))) ;; count occurrences
@@ -229,10 +183,6 @@
          (deb "player-counts: ")
          (map-indexed (fn [ix c] [ix c]))
          (deb "zipped: ")
-         #_(keep-indexed #(is-m-n m (second %)))
-         #_(deb "kept with index: ")
-         #_(map first)
-         #_(deb "indexes only: ")
          (point-counts-of m)
          (deb "point-counts-of: ")
          (count-good-points)
@@ -240,20 +190,18 @@
          (best-point-counts))))
 
 (defn fork-m-level-check [m player p-counts op-counts]
-  #_(deb p-counts)
-  #_(deb op-counts)
   (let [have-m-p-counts (some #(= m %) p-counts)
         have-m-op-counts (some #(= m %) op-counts)]
     (cond
 
      (and have-m-p-counts (not have-m-op-counts))
      (let [[p pc :as best-p-counts] (best-m-level-counts m p-counts)]
-       (prn "position force " best-p-counts)
+       #_(prn "position force ")
        (rand-nth p))
      
      (and (not have-m-p-counts) have-m-op-counts)
      (let [[op opc :as best-op-counts] (best-m-level-counts m op-counts)]
-       (prn "position defend " best-op-counts)
+       #_(prn "position defend ")
        (rand-nth op))
      
      (and have-m-p-counts have-m-op-counts)
@@ -262,16 +210,17 @@
            common-points (intersection (set p) (set op))]
        (if (empty? common-points )
          (do
-           (prn "empty")
+           #_(prn "empty")
            (if (>= pc opc)
-             (do (prn (str "force: " best-p-counts)) (rand-nth p))
-             (do (prn (str "defend: " best-op-counts)) (rand-nth op))))
+             (do #_(prn (str "force: " best-p-counts)) (rand-nth p))
+             (do #_(prn (str "defend: " best-op-counts)) (rand-nth op))))
          (do
-           (prn (str "intersect: " common-points) )
+           #_(prn (str "intersect: " common-points) )
            (rand-nth (vec common-points)))))
 
      :else
-     (prn (str "no " m " level counts")))))
+     nil
+     #_(prn (str "no " m " level counts")))))
 
 (defn get-ai-move [player]
   (let [potential (game-potential @game)
@@ -283,165 +232,22 @@
      (fork-m-level-check 1 player p-counts op-counts))
 ))
 
-
-(defn fork-check [player p-counts op-counts]
-  (fork-m-level-check 2 player p-counts op-counts))
-
-#_(defn fork-check [player p-counts op-counts]
-  (deb p-counts)
-  (deb op-counts)
-  (if (and (some #(= 2 %) p-counts) (some #(= 2 %) op-counts))
-    (let [[p pc :as best-p-counts] (best-m-level-counts 2 p-counts)
-          [op opc :as best-op-counts] (best-m-level-counts 2 op-counts)
-          common-points (intersection (set p) (set op))]
-      (if (empty? common-points )
-        (if (>= pc opc)
-          (rand-nth p)
-          (rand-nth op))
-        (rand-nth (vec common-points)))
-      #_(prn (str "me: " best-p-counts)) 
-      #_(prn (str "op: " best-op-counts)) 
-      )
-    nil)
-  )
-
-(defn wrapped-fork []
-  (let [gp (game-potential @game)
-        p-counts (map #(first (rest %)) gp)
-        op-counts (map first gp)]
-    (fork-check :b p-counts op-counts)
-))
+(defn computer-turn [g]
+  #_(prn "play computer turn")
+  (get-ai-move :b)
+)
 
 (defn setup []
   (swap! game #(assoc % 
                   :as #{[1 2] [2 1] [3 0]}
-                  :bs #{[2 3] [2 2]}
-                       ))) 
-
-(defn get-tactic [potential player]
-  (let [px (if (= player :a) 0 1)
-        opx (- 1 px)
-        p-counts (map #(nth % px) potential)
-        op-counts (map #(nth % opx) potential)]
-
-    (prn (str "potential " potential))
-    (prn (str "player" player))
-    (prn (str "al" p-counts))
-    (prn (str "you" op-counts))
-
-    (deb (if (or (some #(= 4 %) p-counts) (some #(= 4 %) op-counts))
-           [:game-over player]
-           (if (some #(= 3 %) p-counts) 
-             [:win (keep-indexed is3 p-counts)]
-             (if (some #(= 3 %) op-counts)
-               [:block (keep-indexed is3 op-counts)]
-               (let [fork (fork-check player p-counts op-counts)]
-                 (if fork
-                   fork
-                   (if (some #(= 2 %) p-counts)
-                     [:force (keep-indexed is2 p-counts)]
-                     (if (some #(= 2 %) op-counts)
-                       [:defend (keep-indexed is2 op-counts)]
-                       (if (some #(= 1 %) p-counts)
-                         [:enable-force (keep-indexed is1 p-counts)]
-                         (if (some #(= 1 %) op-counts)
-                           [:enable-defence (keep-indexed is1 op-counts)]
-                           (if (not-every? #(or (= 0 %) (nil? %)) potential)
-                             [:most-squares p-counts]
-                             [:game-over nil])
-                           ))))))))))))
-
-(defn tactic []
-  (get-tactic (game-potential @game) :b))
-
-
-(defn empty-point? [g p] 
-  (if (and (not ((:as g) p)) (not ((:bs g) p)))
-    p
-    nil))
-
-(defn best-points [m] 
-  (let [max-val (apply max (vals m))]
-    (map key (filter #(let [[k v] %] (= max-val v)) m))))
-
-(defn best-tactical-move [g square-indices]
-  "Choose a point to hit from the points inside the critical squares"
-  ;; Fetch the squares to consider
-  (->> square-indices
-       deb
-       (map #(if (nil? %) nil (nth (:squares g) %))) ;; convert to square point sets
-       (mapcat vec) ;; then to a vector of points
-       (filter #(empty-point? g %)) ;; remove already claimed points
-       (reduce #(update %1 %2 inc) '{}) ;; count occurrences
-       (deb)
-       (best-points)
-       (deb)
-       (rand-nth)
-       (deb))
-)
-
-(defn attack-3-4 [g square-indices] 
-  (let [winning-square (nth (:squares g) (first square-indices))]
-    (prn (str "win: " square-indices))
-    (prn (str "winning-square: " winning-square))
-    (prn (str  "move on " (some #(empty-point? g %) winning-square)))
-    (best-tactical-move g square-indices)
-    ))
-
-(defn defend-3-4 [g square-indices] 
-  (prn (str "block: " square-indices))
-  (best-tactical-move g square-indices))
-
-(defn fork-attack [g square-indices] 
-  (prn (str "force: " square-indices))
-  (best-tactical-move g square-indices))
-
-(defn fork-defend [g square-indices] 
-  (prn (str "force: " square-indices))
-  (best-tactical-move g square-indices))
-
-(defn attack-2-3 [g square-indices] 
-  (prn (str "force: " square-indices))
-  (best-tactical-move g square-indices))
-
-(defn defend-2-3 [g square-indices] 
-  (prn (str "defend: " square-indices))
-  (best-tactical-move g square-indices))
-
-(defn attack-1-2 [g square-indices] 
-  (prn (str "enable-force: " square-indices))
-  (best-tactical-move g square-indices))
-
-(defn defend-1-2 [g square-indices] 
-  (prn (str "enable-defence: " square-indices))
-  (best-tactical-move g square-indices))
-
-(defn best-0 [g player square-indices]
-  "Find the point with the most squares"
-  (best-tactical-move g square-indices))
-
-(defn apply-tactics [g player]
-  (let [[tactic square-indices] (get-tactic (game-potential g) player)]
-    (condp = tactic 
-      :win   (attack-3-4 g square-indices) ; 3->4
-      :block (defend-3-4 g square-indices) ; stop 3->4
-      :fork-attack (fork-attack g square-indices) ; Create 2 3-squares
-      :fork-defend (fork-defend g square-indices) ; Block creation of 2 3-squares
-      :force (attack-2-3 g square-indices) ; 2->3
-      :defend (defend-2-3 g square-indices) ; stop 2->3
-      :enable-force (attack-1-2 g square-indices) ; best 1->2
-      :enable-defence (defend-1-2 g square-indices) ; stop best 1->2
-      :most-squares (best-0 g player square-indices) ; choose point on most squares
-      :game-over (prn "Game Over" square-indices)
-      )))
+                  :bs #{[2 3] [2 2]})))
 
 (defn fill-color [g p]
   (if ((:as g) p) 
     (:a player-colours)
     (if ((:bs g) p)
       (:b player-colours)
-      (:none player-colours)))
-  )
+      (:none player-colours))))
 
 (defn dot-sep [n]
   (Math.floor (/ 300 n)))
@@ -470,8 +276,7 @@
         new-n (if (> old-n min-n) (- old-n 1) min-n)]
     (swap! game #(assoc % :as #{} :bs #{}
                          :n new-n
-                         :squares (all-squares new-n)))
-  ))
+                         :squares (all-squares new-n)))))
 
 (defn claim-a-point [as point]
   (swap! game #(assoc % :player :b :as (conj as point))))
@@ -483,29 +288,27 @@
   (if (and (not (as point)) (not (bs point)))
     (if (= player :a)
       (claim-a-point as point)
-      (claim-b-point bs point)
-      )))
+      (claim-b-point bs point))))
 
-(defn computer-turn [g]
-  (prn "play computer turn")
-  (get-ai-move :b)
-)
+(defn timeout [ms f & xs]
+  "Call f, optionally with arguments xs, after ms milliseconds"
+  (js/setTimeout #(apply f xs) ms))
 
+(defn postscript [g]
+  "Show winning square"
+  (prn "Winning square todo"))
 
-
-(declare timeout)
-
-#_(defn test-pp [g as point]
-  (claim-a-point as point)
-  (timeout 2000 #(prn @game)))
 
 (defn single-player-point [g as bs point] 
-  (when (not (game-over? g)) (claim-a-point as point))
-  (when (not (game-over? @game))
-    (timeout al-think-time #(->> @game
-                                 (computer-turn)
-                                 (claim-b-point bs))))
-)
+  (do
+    (if (game-over? g)
+      (postscript g)
+      (claim-a-point as point))
+    (if (game-over? g)
+      (postscript g)
+      (timeout al-think-time #(->> @game
+                                   (computer-turn)
+                                   (claim-b-point bs))))))
 
 (defn handle-tap [event]
   (let [p (reader/read-string (.. event -target -id))
@@ -519,7 +322,6 @@
         (claim-point as bs p pl)
         (when (= pl :a)
           (single-player-point g as bs p))))))
-
 
 (r/defc svg-dot < r/reactive [n x y fill]
   [:circle {
@@ -549,24 +351,21 @@
            (svg-dot n x y (fill-color g [x y])) ))])]])
 
 (r/defc debug-game < r/reactive [g]
-  [:p {:key "b1"} (str (dissoc g :squares))]
-)
+  [:p {:key "b1"} (str (dissoc g :squares))])
 
 (defn active [g player-count]
-  (if (= player-count (:players g)) "active" "")
-)
+  (if (= player-count (:players g)) "active" ""))
 
 (defn one-player [event]
   (.stopPropagation event)
-  (swap! game #(assoc % :players 1)))
+  (swap! game #(assoc % :players 1 :player :a :as #{} :bs #{})))
 
 (defn two-player [event]
   (.stopPropagation event)
-  (swap! game #(assoc % :players 2)))
+  (swap! game #(assoc % :players 2 :player :a :as #{} :bs #{})))
 
 (defn reset-game 
   ([]
-   #_(reset! game initial-state)
    (swap! game #(assoc % :squares (all-squares (:n @game))
                          :player :a
                          :as #{}
@@ -579,8 +378,7 @@
 
 (defn start-game []
   (if (empty? (:squares @game))
-    (reset-game))
-  )
+    (reset-game)))
 
 (r/defc tool-bar < r/reactive [g]
   [:div
@@ -592,9 +390,7 @@
     [:button {:type "button" :class (str "btn btn-default " (active g 1)) :key "bu4" :on-click one-player :on-touch-end one-player} "1 player"]
     [:button {:type "button" :class (str "btn btn-default " (active g 2)) :key "bu5" :on-click two-player :on-touch-end two-player} "2 player"]
     [:button {:type "button" :class "btn btn-danger" :key "bu3" :on-click reset-game :on-touch-end reset-game} 
-     [:span {:class "fa fa-refresh"}]]
-    ]
-   ])
+     [:span {:class "fa fa-refresh"}]]]])
 
 (defn get-status [g]
   (let [pa (= (:player g) :a)
@@ -607,8 +403,7 @@
           (if pa :yours :als))
         (if gover
           (if pa :b-win :a-win)
-          (if pa :as-turn :bs-turn))
-        ))))
+          (if pa :as-turn :bs-turn))))))
 
 (defn get-message [status]
   (status messages))
@@ -628,25 +423,11 @@
       (tool-bar g)
       (status-bar g)]
      (svg-grid g)
-     (debug-game g)
-     ]
-))
+     #_(debug-game g)]))
 
 (defn on-js-reload []
-  (swap! game update-in [:__figwheel_counter] inc)
-)
+  (swap! game update-in [:__figwheel_counter] inc))
 
 (r/mount (board) (.getElementById js/document "game"))
 
-;;;;;;;;;;;;;; 
-;;
-;; timer i/o
-;;
-(defn timeout [ms f & xs]
-  "Call f, optionally with arguments xs, after ms milliseconds"
-  (js/setTimeout #(apply f xs) ms))
-
 (start-game)
-
-
-
