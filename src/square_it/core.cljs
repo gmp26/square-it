@@ -189,6 +189,19 @@
          (deb "count-good-points: ")
          (best-point-counts))))
 
+
+(defn postscript [g]
+  "Show winning square"
+  (prn "Winning square todo")
+  (let [potential (game-potential @game)
+        a-counts (point-counts-of 
+                  4 (map-indexed (fn [ix [ac bc]] [ix ac]) potential))
+        b-counts (point-counts-of 
+                  4 (map-indexed (fn [ix [ac bc]] [ix bc]) potential))
+        win-point-set (nth (:squares @game) (first (flatten [a-counts b-counts])))
+        ]
+    ))
+
 (defn fork-m-level-check [m player p-counts op-counts]
   (let [have-m-p-counts (some #(= m %) p-counts)
         have-m-op-counts (some #(= m %) op-counts)]
@@ -294,19 +307,14 @@
   "Call f, optionally with arguments xs, after ms milliseconds"
   (js/setTimeout #(apply f xs) ms))
 
-(defn postscript [g]
-  "Show winning square"
-  (prn "Winning square todo"))
-
-
 (defn single-player-point [g as bs point] 
   (do
     (if (game-over? g)
-      (postscript g)
+      (when (not (game-drawn? g) (postscript g)))
       (claim-a-point as point))
     (let [newg @game]
       (if (game-over? newg)
-        (postscript newg)
+        (when (not (game-drawn? newg) (postscript newg)))
         (timeout al-think-time #(->> newg
                                      (computer-turn)
                                      (claim-b-point bs)))))))
