@@ -304,11 +304,22 @@
     (if (game-over? g)
       (postscript g)
       (claim-a-point as point))
-    (if (game-over? g)
-      (postscript g)
-      (timeout al-think-time #(->> @game
-                                   (computer-turn)
-                                   (claim-b-point bs))))))
+    (let [newg @game]
+      (if (game-over? newg)
+        (postscript newg)
+        (timeout al-think-time #(->> newg
+                                     (computer-turn)
+                                     (claim-b-point bs)))))))
+
+
+#_(defn single-player-point [g as bs point] 
+  (when (not (game-over? g)) (claim-a-point as point))
+  (when (not (game-over? @game))
+    (timeout al-think-time #(->> @game
+                                 (computer-turn)
+                                 (claim-b-point bs))))
+)
+
 
 (defn handle-tap [event]
   (let [p (reader/read-string (.. event -target -id))
