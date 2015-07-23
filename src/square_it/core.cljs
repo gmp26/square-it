@@ -129,6 +129,14 @@
 ;; strategy utils
 ;;
 
+(defn deb 
+  ([x] 
+   "print value as identity for debug use"
+   (prn x) x)
+  ([s x]
+   (prn (str s x)) x))
+
+
 (defn unpainted? [g point]
   (let [as (:as g)
         bs (:bs g)]
@@ -149,20 +157,6 @@
        (map #(if (player-points %) 1 0))
        (reduce +) ))
 
-(defn good-square-corners [as bs square]
-  "find and score free corners in singly-owned squares"
-  (let  [as-count (raw-corner-count square as)
-         bs-count (raw-corner-count square bs)]
-    (filter #(and (not (as %)) (not (bs %)) (= 0 (* as-count bs-count))) square)))
-
-(defn good-corners [as bs squares]
-  (map #(good-square-corners as bs %) squares)
-)
-
-(defn point-scores []
-  "count and score the number of makeable squares that each point can influence"
-  ())
-
 (defn square-potential [as bs square]
   "return [a b] ownership counts of a square. A doubly owned square returns nil"
   (let [as-count (raw-corner-count square as)
@@ -173,13 +167,14 @@
       )))
 
 (defn squares-potential [as bs squares]
-  "return [a b] ownership counts of squares. A doubly owned square returns nil"
+  "return [a b] ownership counts of squares. Any doubly owned square returns a nil"
   (map #(square-potential as bs %) squares)
 )
 
 (defn game-potential [g]
   "return [a b] ownership counts of squares in a game. A doubly owned square returns nil"
-  (map #(square-potential (:as g) (:bs g) %) (:squares g))
+  (squares-potential (:as g) (:bs g) (:squares g))
+  #_(map #(square-potential (:as g) (:bs g) %) (:squares g))
 )
 
 (defn game-drawn? [g]
@@ -195,12 +190,6 @@
 (defn is3 [i n] (if (= 3 n) i nil))
 (defn is2 [i n] (if (= 2 n) i nil))
 (defn is1 [i n] (if (= 1 n) i nil))
-;;
-;; debugger
-;;
-(defn deb [x] 
-  (prn x)
-  x)
 
 #_(defn best-tactical-move [g square-indices]
   (->> square-indices
@@ -224,17 +213,86 @@
 
 (defn count-good-points [square-indices]
   (->> square-indices
+       (deb "square-indices ")
        (map #(if (nil? %) nil (nth (:squares @game) %))) ;; convert to square point sets
+       (deb "kept square points ")
        (mapcat vec) ;; then to a vector of points
        (filter #(empty-point? @game %)) ;; remove already claimed points
        (reduce #(update %1 %2 inc) '{}))) ;; count occurrences
 
+(defn point-counts-of [m counts] 
+  (map key (filter #(let [[k v] %] (= m v)) counts)))
+
+(defn best-m-level-counts [m player-counts]
+  (let [is-m-n #(if (= m %2) %1 nil)]
+    (->> player-counts
+         (deb "player-counts: ")
+         (map-indexed (fn [ix c] [ix c]))
+         (deb "zipped: ")
+         #_(keep-indexed #(is-m-n m (second %)))
+         #_(deb "kept with index: ")
+         #_(map first)
+         #_(deb "indexes only: ")
+         (point-counts-of m)
+         (deb "point-counts-of: ")
+         (count-good-points)
+         (deb "count-good-points: ")
+         (best-point-counts))))
+
+(defn fork-m-level-check [m player p-counts op-counts]
+  #_(deb p-counts)
+  #_(deb op-counts)
+  (let [have-m-p-counts (some #(= m %) p-counts)
+        have-m-op-counts (some #(= m %) op-counts)]
+    (cond
+
+     (and have-m-p-counts (not have-m-op-counts))
+     (let [[p pc :as best-p-counts] (best-m-level-counts m p-counts)]
+       (prn "position force " best-p-counts)
+       (rand-nth p))
+     
+     (and (not have-m-p-counts) have-m-op-counts)
+     (let [[op opc :as best-op-counts] (best-m-level-counts m op-counts)]
+       (prn "position defend " best-op-counts)
+       (rand-nth op))
+     
+     (and have-m-p-counts have-m-op-counts)
+     (let [[p pc :as best-p-counts] (best-m-level-counts m p-counts)
+           [op opc :as best-op-counts] (best-m-level-counts m op-counts)
+           common-points (intersection (set p) (set op))]
+       (if (empty? common-points )
+         (do
+           (prn "empty")
+           (if (>= pc opc)
+             (do (prn (str "force: " best-p-counts)) (rand-nth p))
+             (do (prn (str "defend: " best-op-counts)) (rand-nth op))))
+         (do
+           (prn (str "intersect: " common-points) )
+           (rand-nth (vec common-points)))))
+
+     :else
+     (prn (str "no " m " level counts")))))
+
+(defn get-ai-move [player]
+  (let [potential (game-potential @game)
+        p-counts (map second potential)
+        op-counts (map first potential)]
+    (or 
+     (fork-m-level-check 3 player p-counts op-counts)
+     (fork-m-level-check 2 player p-counts op-counts)
+     (fork-m-level-check 1 player p-counts op-counts))
+))
+
+
 (defn fork-check [player p-counts op-counts]
+  (fork-m-level-check 2 player p-counts op-counts))
+
+#_(defn fork-check [player p-counts op-counts]
   (deb p-counts)
   (deb op-counts)
   (if (and (some #(= 2 %) p-counts) (some #(= 2 %) op-counts))
-    (let [[p pc :as best-p-counts] (best-point-counts (count-good-points (keep-indexed is2 p-counts)))
-          [op opc :as best-op-counts] (best-point-counts (count-good-points (keep-indexed is2 op-counts)))
+    (let [[p pc :as best-p-counts] (best-m-level-counts 2 p-counts)
+          [op opc :as best-op-counts] (best-m-level-counts 2 op-counts)
           common-points (intersection (set p) (set op))]
       (if (empty? common-points )
         (if (>= pc opc)
@@ -295,6 +353,7 @@
 
 (defn tactic []
   (get-tactic (game-potential @game) :b))
+
 
 (defn empty-point? [g p] 
   (if (and (not ((:as g) p)) (not ((:bs g) p)))
@@ -429,7 +488,8 @@
 
 (defn computer-turn [g]
   (prn "play computer turn")
-  (apply-tactics g :b))
+  (get-ai-move :b)
+)
 
 
 
