@@ -335,19 +335,23 @@
           (single-player-point g as bs p))))))
 
 (r/defc svg-dot < r/reactive [n x y fill]
-  [:circle {
-            :class "dot"
-            :cx (gaps x) 
-            :cy (gaps y)
-            :r (units 8)
-            :fill fill
-            :stroke "#cceecc"
-            :stroke-width (units  8)
-            :id (str "[" x " " y "]")
-            :key (str "[" x " " y "]")
-            :on-click handle-tap
-            :on-touch-end handle-tap
-            }])
+  (let [p [x y]
+        g (r/react game)
+        the-class #(if (or ((:as g) p) ((:bs g) p)) "dot claimed" "dot")
+        ]
+    [:circle {
+              :class (the-class)
+              :cx (gaps x) 
+              :cy (gaps y)
+              :r (units 8)
+              :fill fill
+              :stroke "#cceecc"
+              :stroke-width (units  8)
+              :id (str "[" x " " y "]")
+              :key (str "[" x " " y "]")
+              :on-click handle-tap
+              :on-touch-end handle-tap
+              }]))
 
 (r/defc svg-grid < r/reactive [g]
   [:section {:key "b3" :style {:height "60%"}}
