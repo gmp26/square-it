@@ -1,8 +1,7 @@
 (ns ^:figwheel-always square-it.core
     (:require [rum :as r]
               [cljs.reader :as reader]
-              [clojure.set :refer (union intersection)]
-              [cljs.pprint :refer (pprint)]
+              [clojure.set :refer (intersection)]
               [cljsjs.react]
               )
     )
@@ -22,7 +21,7 @@
         x4 (- x dy)
         y4 (+ y dx)]
     (if (and (< x2 n) (< y2 n) (>= x3 0) (< y3 n) (>= x4 0) (< y4 n))
-      #{[x y] [x2 y2] [x3 y3] [x4 y4]}))
+      [[x y] [x2 y2] [x3 y3] [x4 y4]]))
 )
 
 ;;; "100 Elapsed time: 1187 msecs" (28 -> 1101)
@@ -180,26 +179,32 @@
 (defn best-m-level-counts [m player-counts]
   (let [is-m-n #(if (= m %2) %1 nil)]
     (->> player-counts
-         (deb "player-counts: ")
+         #_(deb "player-counts: ")
          (map-indexed (fn [ix c] [ix c]))
-         (deb "zipped: ")
+         #_(deb "zipped: ")
          (point-counts-of m)
-         (deb "point-counts-of: ")
+         #_(deb "point-counts-of: ")
          (count-good-points)
-         (deb "count-good-points: ")
+         #_(deb "count-good-points: ")
          (best-point-counts))))
 
 
-(defn postscript [g]
-  "Show winning square"
-  (prn "Winning square todo")
+(defn winning-square [g]
+  "Winning square path data"
   (let [potential (game-potential @game)
         a-counts (point-counts-of 
                   4 (map-indexed (fn [ix [ac bc]] [ix ac]) potential))
         b-counts (point-counts-of 
                   4 (map-indexed (fn [ix [ac bc]] [ix bc]) potential))
-        win-point-set (nth (:squares @game) (first (flatten [a-counts b-counts])))
+        wp (nth (:squares @game) (first (flatten [a-counts b-counts])))
+        p2s #(str (gaps (first %)) " " (gaps (second %)))
+        sq2data #()
         ]
+    (str "M " (p2s (first wp))
+         " L " (p2s (second wp))
+         " L " (p2s (nth wp 2))
+         " L " (p2s (nth wp 3))
+         " z") 
     ))
 
 (defn fork-m-level-check [m player p-counts op-counts]
@@ -309,12 +314,10 @@
 
 (defn single-player-point [g as bs point] 
   (do
-    (if (game-over? g)
-      (when (not (game-drawn? g) (postscript g)))
+    (when (not (or (game-over? g) (game-drawn? g)))
       (claim-a-point as point))
     (let [newg @game]
-      (if (game-over? newg)
-        (when (not (game-drawn? newg) (postscript newg)))
+      (when (not (or (game-over? newg) (game-drawn? newg)))
         (timeout al-think-time #(->> newg
                                      (computer-turn)
                                      (claim-b-point bs)))))))
@@ -361,6 +364,9 @@
               :on-touch-end handle-tap
               }]))
 
+(declare get-status)
+(declare get-fill)
+
 (r/defc svg-grid < r/reactive [g]
   [:section {:key "b3" :style {:height "60%"}}
    [:svg {:view-box (str "0 0 " bound-width " " bound-height) 
@@ -371,7 +377,19 @@
       [:g {:id "box" :transform (str "scale(" (* 1 (/ max-n n)) ")")}
        (for [x (range n)]
          (for [y (range n)]
-           (svg-dot n x y (fill-color g [x y])) ))])]])
+           (svg-dot n x y (fill-color g [x y])) ))
+       (when (and (game-over? g) (not (game-drawn? g))) 
+         [:g
+          [:path {
+                  :d (winning-square g)
+                  :fill "none" ;;(get-fill (get-status g))
+                  :opacity 0.5
+                  :stroke (get-fill (get-status g))
+                  :stroke-width "3"
+                  }]
+          ]
+         )
+       ])]])
 
 (r/defc debug-game < r/reactive [g]
   [:p {:key "b1"} (str (dissoc g :squares))])
@@ -438,6 +456,14 @@
   (let [status (get-status g)]
     [:p {:class "status" :style {:background-color (get-fill status)} :key "b4"} (get-message status)]))
 
+(r/defc rules []
+  [:p {:style {
+               :text-align "center"
+               :font-size 24
+               :color "#888"
+               }}
+   "Claim all 4 corners of a square to win"])
+
 (r/defc board  < r/reactive []
   (let [g (r/react game)]
     [:section
@@ -446,6 +472,7 @@
       (tool-bar g)
       (status-bar g)]
      (svg-grid g)
+     (rules)
      #_(debug-game g)]))
 
 (defn on-js-reload []
