@@ -214,12 +214,12 @@
 
      (and have-m-p-counts (not have-m-op-counts))
      (let [[p pc :as best-p-counts] (best-m-level-counts m p-counts)]
-       #_(prn "position force ")
+       (prn "position force ")
        (rand-nth p))
      
      (and (not have-m-p-counts) have-m-op-counts)
      (let [[op opc :as best-op-counts] (best-m-level-counts m op-counts)]
-       #_(prn "position defend ")
+       (prn "position defend ")
        (rand-nth op))
      
      (and have-m-p-counts have-m-op-counts)
@@ -228,17 +228,17 @@
            common-points (intersection (set p) (set op))]
        (if (empty? common-points )
          (do
-           #_(prn "empty")
+           (prn "empty")
            (if (>= pc opc)
-             (do #_(prn (str "force: " best-p-counts)) (rand-nth p))
-             (do #_(prn (str "defend: " best-op-counts)) (rand-nth op))))
+             (do (prn (str "force: " best-p-counts)) (rand-nth p))
+             (do (prn (str "defend: " best-op-counts)) (rand-nth op))))
          (do
-           #_(prn (str "intersect: " common-points) )
+           (prn (str "intersect: " common-points) )
            (rand-nth (vec common-points)))))
 
      :else
-     nil
-     #_(prn (str "no " m " level counts")))))
+     #_nil
+     (prn (str "no " m " level counts")))))
 
 (defn get-ai-move [player]
   (let [potential (game-potential @game)
@@ -281,6 +281,7 @@
 (defn up-tap [event]
   "grow the game by 1 unit up to a max-n square"
   (.stopPropagation event)
+  (.preventDefault event)
   (let [old-n (:n @game)
         new-n (if (< old-n max-n) (inc old-n) max-n)]
     (swap! game #(assoc % :as #{} :bs #{}
@@ -290,6 +291,7 @@
 (defn down-tap [event]
   "shrink the game by 1 unit down to a min-n square"
   (.stopPropagation event)
+  (.preventDefault event)
   (let [old-n (:n @game)
         new-n (if (> old-n min-n) (- old-n 1) min-n)]
     (swap! game #(assoc % :as #{} :bs #{}
@@ -340,6 +342,7 @@
         pl (:player g)]
     (do 
       (.stopPropagation event)
+      (.preventDefault event)
       (if (= (:players g) 2)
         (claim-point as bs p pl)
         (when (= pl :a)
@@ -399,10 +402,12 @@
 
 (defn one-player [event]
   (.stopPropagation event)
+  (.preventDefault event)
   (swap! game #(assoc % :players 1 :player :a :as #{} :bs #{})))
 
 (defn two-player [event]
   (.stopPropagation event)
+  (.preventDefault event)
   (swap! game #(assoc % :players 2 :player :a :as #{} :bs #{})))
 
 (defn reset-game 
@@ -412,7 +417,7 @@
                          :as #{}
                          :bs #{})))
   ([event] 
-   (.stopPropagation event) 
+   (.preventDefault event) 
    (reset-game))
   ([event _]
    (reset-game event)))
@@ -464,6 +469,32 @@
                }}
    "Claim all 4 corners of a square to win"])
 
+(defn random-dark-colour []
+  (let [dark #(+ 100 (rand-int 70))]
+    (str "rgb(" (dark) "," (dark) "," (dark) ")"))) 
+
+(def dark-rgb (random-dark-colour))
+
+(r/defc goal [g]
+  (let [n (:n g)]
+    [:p {:style {
+                 :text-align "center"
+                 :font-size 24
+                 :color "#fff"
+                 :padding "5px"
+                 :background-color dark-rgb 
+                 }}
+     (condp = n
+         3 "Can blue lose?"
+         4 "Can blue lose in 4 moves?"
+         5 "Can blue always win?"
+         6 "Can blue force a draw?"
+         7 "Can blue always lose?"
+         8 "Can blue always win?"
+         9 "Can blue always win on an inifinite board?"
+         )
+     ]))
+
 (r/defc board  < r/reactive []
   (let [g (r/react game)]
     [:section
@@ -473,6 +504,7 @@
       (status-bar g)]
      (svg-grid g)
      (rules)
+     (goal g)
      #_(debug-game g)]))
 
 (defn on-js-reload []
