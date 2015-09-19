@@ -1,5 +1,5 @@
 body {
-  max-width: 1000px !important;
+  max-width: 800px !important;
   margin: auto !important;
 }
 
@@ -10,8 +10,8 @@ body {
 }
 
 .dot {
-    stroke: #e0f0e8;
-    opacity: 0.8;
+    stroke: #ffffff;
+    opacity: 1;
     cursor: pointer;
 }
 
@@ -21,7 +21,7 @@ body {
 
 .dot:hover {
     opacity: 1;
-    stroke: #ddddee;
+    stroke: #ccccdd;
 }
 
 .status {

@@ -31,14 +31,14 @@
         n2 (inc n)]
     (mapcat
      (fn [x]
-       (mapcat 
+       (mapcat
         (fn [y]
-          (mapcat 
-           (fn [dx] 
+          (mapcat
+           (fn [dx]
              (remove nil?
-                     (map 
-                      (fn [dy] (square n x y dx dy))        
-                      (range 0 (- n2 y dx))))) 
+                     (map
+                      (fn [dy] (square n x y dx dy))
+                      (range 0 (- n2 y dx)))))
            (range 1 (- n2 x))))
         (range n1)))
      (range n1))))
@@ -94,9 +94,9 @@
 (def al-think-time 2000)
 
 
-(def player-colours {:a "rgb(0, 153, 255)"
-                     :b "rgb(238, 68, 102)"
-                     :none "rgb(220,255,220)"
+(def player-colours {:a "rgb(20, 133, 255)"
+                     :b "rgb(255, 68, 102)"
+                     :none "rgb(0,0,0)"
                      :draw "rgb(74, 157, 97)"
                      })
 
@@ -111,8 +111,8 @@
 ;; strategy utils
 ;;
 
-(defn deb 
-  ([x] 
+(defn deb
+  ([x]
    "print value as identity for debug use"
    (prn x) x)
   ([s x]
@@ -151,16 +151,16 @@
 
 (defn game-over? [g]
   (let [pot (game-potential g)]
-    (or 
+    (or
      (some #(or (= 4 (first %)) (= 4 (second %))) pot)
      (game-drawn? g))))
 
-(defn empty-point? [g p] 
+(defn empty-point? [g p]
   (if (and (not ((:as g) p)) (not ((:bs g) p)))
     p
     nil))
 
-(defn best-point-counts [m] 
+(defn best-point-counts [m]
   (let [max-val (apply max (vals m))]
     [(map key (filter #(let [[k v] %] (= max-val v)) m)) max-val]))
 
@@ -173,7 +173,7 @@
        (filter #(empty-point? @game %)) ;; remove already claimed points
        (reduce #(update %1 %2 inc) '{}))) ;; count occurrences
 
-(defn point-counts-of [m counts] 
+(defn point-counts-of [m counts]
   (map key (filter #(let [[k v] %] (= m v)) counts)))
 
 (defn best-m-level-counts [m player-counts]
@@ -192,9 +192,9 @@
 (defn winning-square [g]
   "Winning square path data"
   (let [potential (game-potential @game)
-        a-counts (point-counts-of 
+        a-counts (point-counts-of
                   4 (map-indexed (fn [ix [ac bc]] [ix ac]) potential))
-        b-counts (point-counts-of 
+        b-counts (point-counts-of
                   4 (map-indexed (fn [ix [ac bc]] [ix bc]) potential))
         wp (nth (:squares @game) (first (flatten [a-counts b-counts])))
         p2s #(str (gaps (first %)) " " (gaps (second %)))
@@ -204,7 +204,7 @@
          " L " (p2s (second wp))
          " L " (p2s (nth wp 2))
          " L " (p2s (nth wp 3))
-         " z") 
+         " z")
     ))
 
 (defn fork-m-level-check [m player p-counts op-counts]
@@ -216,12 +216,12 @@
      (let [[p pc :as best-p-counts] (best-m-level-counts m p-counts)]
        (prn "position force ")
        (rand-nth p))
-     
+
      (and (not have-m-p-counts) have-m-op-counts)
      (let [[op opc :as best-op-counts] (best-m-level-counts m op-counts)]
        (prn "position defend ")
        (rand-nth op))
-     
+
      (and have-m-p-counts have-m-op-counts)
      (let [[p pc :as best-p-counts] (best-m-level-counts m p-counts)
            [op opc :as best-op-counts] (best-m-level-counts m op-counts)
@@ -244,7 +244,7 @@
   (let [potential (game-potential @game)
         p-counts (map second potential)
         op-counts (map first potential)]
-    (or 
+    (or
      (fork-m-level-check 3 player p-counts op-counts)
      (fork-m-level-check 2 player p-counts op-counts)
      (fork-m-level-check 1 player p-counts op-counts))
@@ -256,12 +256,12 @@
 )
 
 (defn setup []
-  (swap! game #(assoc % 
+  (swap! game #(assoc %
                   :as #{[1 2] [2 1] [3 0]}
                   :bs #{[2 3] [2 2]})))
 
 (defn fill-color [g p]
-  (if ((:as g) p) 
+  (if ((:as g) p)
     (:a player-colours)
     (if ((:bs g) p)
       (:b player-colours)
@@ -314,7 +314,7 @@
   "Call f, optionally with arguments xs, after ms milliseconds"
   (js/setTimeout #(apply f xs) ms))
 
-(defn single-player-point [g as bs point] 
+(defn single-player-point [g as bs point]
   (do
     (when (not (or (game-over? g) (game-drawn? g)))
       (claim-a-point as point))
@@ -330,7 +330,7 @@
         as (:as g)
         bs (:bs g)
         pl (:player g)]
-    (do 
+    (do
       (.stopPropagation event)
       (.preventDefault event)
       (when (not (game-over? g))
@@ -343,12 +343,13 @@
   (let [p [x y]
         g (r/react game)
         the-class #(if (or ((:as g) p) ((:bs g) p)) "dot claimed" "dot")
+        radius (if (or ((:as g) p) ((:bs g) p)) 8 6)
         ]
     [:circle {
               :class (the-class)
-              :cx (gaps x) 
+              :cx (gaps x)
               :cy (gaps y)
-              :r (units 8)
+              :r (units radius)
               :fill fill
               :stroke "#cceecc"
               :stroke-width (units  8)
@@ -363,16 +364,16 @@
 
 (r/defc svg-grid < r/reactive [g]
   [:section {:key "b3" :style {:height "60%"}}
-   [:svg {:view-box (str "0 0 " bound-width " " bound-height) 
+   [:svg {:view-box (str "0 0 " bound-width " " bound-height)
           :height "100%"
           :width "100%"
           :key "b3"}
-    (let [n (:n g)] 
+    (let [n (:n g)]
       [:g {:id "box" :transform (str "scale(" (* 1 (/ max-n n)) ")")}
        (for [x (range n)]
          (for [y (range n)]
            (svg-dot n x y (fill-color g [x y])) ))
-       (when (and (game-over? g) (not (game-drawn? g))) 
+       (when (and (game-over? g) (not (game-drawn? g)))
          [:g
           [:path {
                   :d (winning-square g)
@@ -401,14 +402,14 @@
   (.preventDefault event)
   (swap! game #(assoc % :players 2 :player :a :as #{} :bs #{})))
 
-(defn reset-game 
+(defn reset-game
   ([]
    (swap! game #(assoc % :squares (all-squares (:n @game))
                          :player :a
                          :as #{}
                          :bs #{})))
-  ([event] 
-   (.preventDefault event) 
+  ([event]
+   (.preventDefault event)
    (reset-game))
   ([event _]
    (reset-game event)))
@@ -420,13 +421,13 @@
 (r/defc tool-bar < r/reactive [g]
   [:div
    [:div {:class "btn-group toolbar"}
-    [:button {:type "button" :class "btn btn-warning" :key "bu1" :on-click down-tap :on-touch-end down-tap} 
+    [:button {:type "button" :class "btn btn-warning" :key "bu1" :on-click down-tap :on-touch-end down-tap}
      [:span {:class "fa fa-chevron-down"}]]
-    [:button {:type "button" :class "btn btn-warning" :key "bu2" :on-click up-tap :on-touch-end up-tap} 
+    [:button {:type "button" :class "btn btn-warning" :key "bu2" :on-click up-tap :on-touch-end up-tap}
      [:span {:class "fa fa-chevron-up"}]]
     [:button {:type "button" :class (str "btn btn-default " (active g 1)) :key "bu4" :on-click one-player :on-touch-end one-player} "1 player"]
     [:button {:type "button" :class (str "btn btn-default " (active g 2)) :key "bu5" :on-click two-player :on-touch-end two-player} "2 player"]
-    [:button {:type "button" :class "btn btn-danger" :key "bu3" :on-click reset-game :on-touch-end reset-game} 
+    [:button {:type "button" :class "btn btn-danger" :key "bu3" :on-click reset-game :on-touch-end reset-game}
      [:span {:class "fa fa-refresh"}]]]])
 
 (defn get-status [g]
@@ -462,7 +463,7 @@
 
 (defn random-dark-colour []
   (let [dark #(+ 100 (rand-int 70))]
-    (str "rgb(" (dark) "," (dark) "," (dark) ")"))) 
+    (str "rgb(" (dark) "," (dark) "," (dark) ")")))
 
 (def dark-rgb (random-dark-colour))
 
@@ -473,7 +474,7 @@
                  :font-size 24
                  :color "#fff"
                  :padding "5px"
-                 :background-color dark-rgb 
+                 :background-color dark-rgb
                  }}
      (condp = n
          3 "Can blue lose?"
