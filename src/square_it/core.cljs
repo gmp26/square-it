@@ -491,7 +491,7 @@
          6 "Can blue force a draw?"
          7 "Can blue always lose?"
          8 "Can blue always win?"
-         9 "Can blue always win on an inifinite board?"
+         9 "Can blue always win on an infinite board?"
          )
      ]))
 
