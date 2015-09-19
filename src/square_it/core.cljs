@@ -324,16 +324,6 @@
                                      (computer-turn)
                                      (claim-b-point bs)))))))
 
-
-#_(defn single-player-point [g as bs point] 
-  (when (not (game-over? g)) (claim-a-point as point))
-  (when (not (game-over? @game))
-    (timeout al-think-time #(->> @game
-                                 (computer-turn)
-                                 (claim-b-point bs))))
-)
-
-
 (defn handle-tap [event]
   (let [p (reader/read-string (.. event -target -id))
         g @game
@@ -343,10 +333,11 @@
     (do 
       (.stopPropagation event)
       (.preventDefault event)
-      (if (= (:players g) 2)
-        (claim-point as bs p pl)
-        (when (= pl :a)
-          (single-player-point g as bs p))))))
+      (when (not (game-over? g))
+        (if (= (:players g) 2)
+          (claim-point as bs p pl)
+          (when (= pl :a)
+            (single-player-point g as bs p)))))))
 
 (r/defc svg-dot < r/reactive [n x y fill]
   (let [p [x y]
