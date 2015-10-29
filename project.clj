@@ -8,8 +8,6 @@
                  [org.clojure/clojurescript "0.0-3308"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [rum "0.2.7"]
-;;                 [datascript "0.11.5"]
-;;                 [cljs-uuid "0.0.4"]
                  ]
 
   :plugins [[lein-cljsbuild "1.0.5"]

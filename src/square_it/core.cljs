@@ -94,9 +94,9 @@
 (def al-think-time 2000)
 
 
-(def player-colours {:a "rgb(0, 153, 255)"
-                     :b "rgb(238, 68, 102)"
-                     :none "rgb(220,255,220)"
+(def player-colours {:a "rgb(20, 133, 255)"
+                     :b "rgb(255, 68, 102)"
+                     :none "rgb(0,0,0)"
                      :draw "rgb(74, 157, 97)"
                      })
 
@@ -343,12 +343,13 @@
   (let [p [x y]
         g (r/react game)
         the-class #(if (or ((:as g) p) ((:bs g) p)) "dot claimed" "dot")
+        radius (if (or ((:as g) p) ((:bs g) p)) 8 6)
         ]
     [:circle {
               :class (the-class)
               :cx (gaps x)
               :cy (gaps y)
-              :r (units 8)
+              :r (units radius)
               :fill fill
               :stroke "#cceecc"
               :stroke-width (units  8)
@@ -483,7 +484,7 @@
          6 "Can blue force a draw?"
          7 "Can blue always lose?"
          8 "Can blue always win?"
-         9 "Can blue always win on an inifinite board?"
+         9 "Can blue always win on an infinite board?"
          )
      ]))
 
